@@ -1,7 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 
 // Initialize AI with the API key from environment variables
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Fallback to avoid crash on load if key is missing
+const apiKey = process.env.API_KEY || 'dummy_key';
+const ai = new GoogleGenAI({ apiKey });
 
 /**
  * Edits an image based on a text prompt using Gemini 2.5 Flash Image.
@@ -19,7 +21,7 @@ export const editImage = async (base64Image: string, prompt: string): Promise<st
   if (base64Image.includes(',')) {
     const parts = base64Image.split(',');
     base64Data = parts[1];
-    
+
     // Extract mime type from header "data:image/png;base64"
     const header = parts[0];
     const match = header.match(/:(.*?);/);

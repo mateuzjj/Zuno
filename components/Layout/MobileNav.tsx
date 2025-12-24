@@ -9,37 +9,37 @@ interface MobileNavProps {
 
 export const MobileNav: React.FC<MobileNavProps> = ({ currentView, setView }) => {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[60px] bg-gradient-to-t from-zuno-black to-zuno-black/95 border-t border-white/5 flex items-center justify-around z-50 backdrop-blur-md">
-      <button 
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[60px] bg-zuno-card/95 border-t border-white/5 flex items-center justify-around z-50 backdrop-blur-xl pb-safe">
+      <button
         onClick={() => setView('home')}
-        className={`flex flex-col items-center gap-1 ${currentView === 'home' ? 'text-white' : 'text-zuno-muted'}`}
+        className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'home' ? 'text-white' : 'text-zuno-muted hover:text-white'}`}
       >
-        <Home size={22} strokeWidth={currentView === 'home' ? 2.5 : 2} />
-        <span className="text-[10px]">Início</span>
-      </button>
-      
-      <button 
-        onClick={() => setView('search')}
-        className={`flex flex-col items-center gap-1 ${currentView === 'search' ? 'text-white' : 'text-zuno-muted'}`}
-      >
-        <Search size={22} strokeWidth={currentView === 'search' ? 2.5 : 2} />
-        <span className="text-[10px]">Buscar</span>
+        <Home size={24} strokeWidth={currentView === 'home' ? 2.5 : 2} className={currentView === 'home' ? "text-zuno-accent" : ""} />
+        <span className="text-[10px] font-medium">Início</span>
       </button>
 
-      <button 
-        onClick={() => setView('editor')}
-        className={`flex flex-col items-center gap-1 ${currentView === 'editor' ? 'text-zuno-accent' : 'text-zuno-muted'}`}
+      <button
+        onClick={() => setView('search')}
+        className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'search' ? 'text-white' : 'text-zuno-muted hover:text-white'}`}
       >
-        <Wand2 size={22} strokeWidth={currentView === 'editor' ? 2.5 : 2} />
-        <span className="text-[10px]">Magic</span>
+        <Search size={24} strokeWidth={currentView === 'search' ? 2.5 : 2} className={currentView === 'search' ? "text-zuno-accent" : ""} />
+        <span className="text-[10px] font-medium">Buscar</span>
       </button>
-      
-      <button 
-        onClick={() => setView('library')}
-        className={`flex flex-col items-center gap-1 ${currentView === 'library' ? 'text-white' : 'text-zuno-muted'}`}
+
+      <button
+        onClick={() => setView('editor')}
+        className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'editor' ? 'text-white' : 'text-zuno-muted hover:text-white'}`}
       >
-        <Library size={22} strokeWidth={currentView === 'library' ? 2.5 : 2} />
-        <span className="text-[10px]">Biblioteca</span>
+        <Wand2 size={24} strokeWidth={currentView === 'editor' ? 2.5 : 2} className={currentView === 'editor' ? "text-zuno-accent" : ""} />
+        <span className="text-[10px] font-medium">Magic</span>
+      </button>
+
+      <button
+        onClick={() => setView('library')}
+        className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'library' ? 'text-white' : 'text-zuno-muted hover:text-white'}`}
+      >
+        <Library size={24} strokeWidth={currentView === 'library' ? 2.5 : 2} className={currentView === 'library' ? "text-zuno-accent" : ""} />
+        <span className="text-[10px] font-medium">Biblioteca</span>
       </button>
     </nav>
   );
