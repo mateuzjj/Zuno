@@ -4,7 +4,7 @@ import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize2 } from 
 import { PlayerStatus } from '../../types';
 
 export const PlayerBar: React.FC = () => {
-  const { currentTrack, status, currentTime, togglePlay, nextTrack, prevTrack, seek, volume, setVolume, toggleMute, isMuted } = usePlayer();
+  const { currentTrack, status, currentTime, togglePlay, nextTrack, prevTrack, seek, volume, setVolume, toggleMute, isMuted, toggleExpanded } = usePlayer();
 
   if (!currentTrack) return null;
 
@@ -25,12 +25,20 @@ export const PlayerBar: React.FC = () => {
       <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
 
         {/* Track Info */}
-        <div className="flex items-center gap-4 w-1/3 min-w-[120px]">
-          <img
-            src={currentTrack.coverUrl}
-            alt={currentTrack.title}
-            className="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-zuno-dark object-cover shadow-lg"
-          />
+        <div
+          className="flex items-center gap-4 w-1/3 min-w-[120px] cursor-pointer group"
+          onClick={toggleExpanded}
+        >
+          <div className="relative">
+            <img
+              src={currentTrack.coverUrl}
+              alt={currentTrack.title}
+              className="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-zuno-dark object-cover shadow-lg group-hover:scale-105 transition-transform duration-300"
+            />
+            <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Maximize2 size={20} className="text-white" />
+            </div>
+          </div>
           <div className="hidden md:block overflow-hidden">
             <h4 className="text-sm font-bold text-white truncate hover:underline cursor-pointer">
               {currentTrack.title}

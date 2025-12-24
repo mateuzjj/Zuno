@@ -3,6 +3,7 @@ import { PlayerProvider } from './store/PlayerContext';
 import { Sidebar } from './components/Layout/Sidebar';
 import { MobileNav } from './components/Layout/MobileNav';
 import { PlayerBar } from './components/Player/PlayerBar';
+import { FullScreenPlayer } from './components/Player/FullScreenPlayer';
 import { Home } from './pages/Home';
 import { Search } from './pages/Search';
 import { Library } from './pages/Library';
@@ -38,6 +39,7 @@ const ZunoApp: React.FC = () => {
       </main>
 
       <PlayerBar />
+      <FullScreenPlayer />
       <MobileNav currentView={currentView} setView={setCurrentView} />
     </div>
   );

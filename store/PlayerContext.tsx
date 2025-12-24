@@ -3,6 +3,7 @@ import { PlayerState, PlayerStatus, Track } from '../types';
 import { api } from '../services/api';
 
 interface PlayerContextType extends PlayerState {
+  isExpanded: boolean;
   playTrack: (track: Track) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
@@ -10,6 +11,7 @@ interface PlayerContextType extends PlayerState {
   toggleMute: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
+  toggleExpanded: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -23,6 +25,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [volume, setVolumeState] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
@@ -30,18 +34,18 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => {
-        if(!Number.isNaN(audio.duration)) setDuration(audio.duration);
+      if (!Number.isNaN(audio.duration)) setDuration(audio.duration);
     };
     const handleEnded = () => setStatus(PlayerStatus.STOPPED);
     const handleCanPlay = () => {
-        if (status === PlayerStatus.LOADING) {
-            audio.play().catch(e => console.error("Auto-play blocked:", e));
-            setStatus(PlayerStatus.PLAYING);
-        }
+      if (status === PlayerStatus.LOADING) {
+        audio.play().catch(e => console.error("Auto-play blocked:", e));
+        setStatus(PlayerStatus.PLAYING);
+      }
     };
     const handleError = (e: any) => {
-        console.error("Audio error:", e);
-        setStatus(PlayerStatus.ERROR);
+      console.error("Audio error:", e);
+      setStatus(PlayerStatus.ERROR);
     };
 
     audio.addEventListener('timeupdate', updateTime);
@@ -65,29 +69,30 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const playTrack = async (track: Track) => {
     if (!audioRef.current) return;
-    
+
     // UI Feedback immediately
     setCurrentTrack(track);
     setStatus(PlayerStatus.LOADING);
     setCurrentTime(0);
     // Use track duration as fallback until metadata loads
-    setDuration(track.duration || 0); 
-    
+    setDuration(track.duration || 0);
+
     try {
       // 1. Get the stream URL (async operation)
       const streamUrl = await api.getStreamUrl(track.id);
-      
+
       if (!streamUrl) throw new Error("Stream URL not found");
 
       // 2. Set Audio Source
       audioRef.current.src = streamUrl;
       audioRef.current.volume = volume;
       audioRef.current.muted = isMuted;
-      
+
       // 3. Play
       await audioRef.current.play();
       setStatus(PlayerStatus.PLAYING);
-      
+      setIsExpanded(true); // Auto expand on play (optional, but good for "Modern" vibes)
+
     } catch (err) {
       console.error("Playback failed:", err);
       setStatus(PlayerStatus.ERROR);
@@ -118,8 +123,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       audioRef.current.volume = vol;
       setVolumeState(vol);
       if (vol > 0 && isMuted) {
-          setIsMuted(false);
-          audioRef.current.muted = false;
+        setIsMuted(false);
+        audioRef.current.muted = false;
       }
     }
   };
@@ -131,6 +136,8 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       audioRef.current.muted = newMuted;
     }
   };
+
+  const toggleExpanded = () => setIsExpanded(prev => !prev);
 
   // Mock prev/next implementation
   const nextTrack = () => console.log("Next track");
@@ -144,13 +151,15 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       duration,
       volume,
       isMuted,
+      isExpanded,
       playTrack,
       togglePlay,
       seek,
       setVolume,
       toggleMute,
       nextTrack,
-      prevTrack
+      prevTrack,
+      toggleExpanded
     }}>
       {children}
     </PlayerContext.Provider>
