@@ -2,6 +2,7 @@ import React from 'react';
 import { Home, Search, Library, PlusSquare, Heart, Wand2 } from 'lucide-react';
 import { View } from '../../types';
 import { Logo } from '../UI/Logo';
+import { UserProfile } from '../User/UserProfile';
 
 interface SidebarProps {
   currentView: View;
@@ -22,6 +23,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
         <Logo className="h-8 text-white group-hover:text-zuno-accent transition-colors duration-500" />
         <p className="text-[10px] tracking-[0.3em] text-zuno-muted uppercase mt-3 font-medium opacity-60 group-hover:opacity-100 transition-opacity pl-0.5">Escute Diferente</p>
       </div>
+
+      <UserProfile />
 
       {/* Main Nav */}
       <nav className="flex flex-col gap-2">

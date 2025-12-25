@@ -164,7 +164,7 @@ export const FullScreenPlayer: React.FC = () => {
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-3xl flex flex-col animate-in slide-in-from-bottom duration-500 touch-none">
+        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-3xl flex flex-col animate-in slide-in-from-bottom duration-500 touch-none h-[100dvh] overflow-hidden">
 
             {/* Background Ambience */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -176,7 +176,7 @@ export const FullScreenPlayer: React.FC = () => {
             </div>
 
             {/* Header */}
-            <div className="relative z-10 flex items-center justify-between p-6 mt-safe">
+            <div className="relative z-10 flex items-center justify-between p-6 mt-safe shrink-0">
                 <button
                     onClick={toggleExpanded}
                     className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
@@ -198,11 +198,11 @@ export const FullScreenPlayer: React.FC = () => {
             </div>
 
             {/* Main Content (Orb + Volume) */}
-            <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-8">
+            <div className="relative z-10 flex-1 flex flex-col items-center justify-center min-h-0">
 
                 {/* Container for Orb and Volume Slider */}
                 <div
-                    className="relative w-80 h-80 flex items-center justify-center select-none"
+                    className="relative w-[35vh] h-[35vh] max-w-[280px] max-h-[280px] md:w-80 md:h-80 flex items-center justify-center select-none"
                     ref={volumeRef}
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
@@ -210,7 +210,7 @@ export const FullScreenPlayer: React.FC = () => {
                     onPointerLeave={handlePointerUp}
                 >
                     {/* SVG Layer for Volume */}
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible" viewBox="0 0 320 320">
                         {/* Background Track */}
                         <path
                             d={describeArc(center, center, radius, ARC_START, ARC_END)}
@@ -231,47 +231,47 @@ export const FullScreenPlayer: React.FC = () => {
                     </svg>
 
                     {/* Icons */}
-                    <div className={`absolute top-0 transform -translate-y-8 text-white/50 transition-opacity ${isDraggingVolume ? 'opacity-100' : 'opacity-50'}`}>
+                    <div className={`absolute top-0 transform -translate-y-6 md:-translate-y-8 text-white/50 transition-opacity ${isDraggingVolume ? 'opacity-100' : 'opacity-50'}`}>
                         <Volume2 size={24} />
                     </div>
-                    <div className={`absolute bottom-0 transform translate-y-8 text-white/50 transition-opacity ${isDraggingVolume ? 'opacity-100' : 'opacity-50'}`}>
+                    <div className={`absolute bottom-0 transform translate-y-6 md:translate-y-8 text-white/50 transition-opacity ${isDraggingVolume ? 'opacity-100' : 'opacity-50'}`}>
                         <VolumeX size={24} />
                     </div>
 
                     {/* Central Orb (Album Art) */}
-                    <div className="relative w-56 h-56 rounded-full overflow-hidden border-4 border-zuno-card/50 shadow-2xl shadow-zuno-accent/20 z-10 pointer-events-none">
+                    <div className="relative w-[65%] h-[65%] rounded-full overflow-hidden border-4 border-zuno-card/50 shadow-2xl shadow-zuno-accent/20 z-10 pointer-events-none">
                         <img src={currentTrack.coverUrl} alt="Album Art" className={`w-full h-full object-cover ${isPlaying ? 'animate-[spin_30s_linear_infinite]' : ''}`} />
                     </div>
 
                     {/* Draggable Knob */}
                     <div
-                        className="absolute w-10 h-10 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)] flex items-center justify-center z-20 cursor-grab active:cursor-grabbing transition-transform"
+                        className="absolute w-8 h-8 md:w-10 md:h-10 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)] flex items-center justify-center z-20 cursor-grab active:cursor-grabbing transition-transform"
                         style={{
-                            left: knobPos.x - 20, // Center the knob (w/2)
-                            top: knobPos.y - 20,
+                            left: `calc(${(knobPos.x / 320) * 100}% - ${isDraggingVolume ? 20 : 16}px)`, // Dynamic offset based on size? simplified: just center it properly
+                            top: `calc(${(knobPos.y / 320) * 100}% - ${isDraggingVolume ? 20 : 16}px)`,
                             transform: isDraggingVolume ? 'scale(1.2)' : 'scale(1)'
                         }}
                     >
-                        <span className="text-black text-[10px] font-bold font-mono">{Math.round(volume * 100)}</span>
+                        <span className="text-black text-[8px] md:text-[10px] font-bold font-mono">{Math.round(volume * 100)}</span>
                     </div>
                 </div>
 
-                <div className="mt-16 text-center space-y-2">
-                    <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight line-clamp-1 px-4">{currentTrack.title}</h2>
-                    <p className="text-lg text-zuno-muted font-medium">{currentTrack.artist}</p>
+                <div className="mt-4 md:mt-16 text-center space-y-1 md:space-y-2 shrink-0">
+                    <h2 className="text-xl md:text-3xl font-bold text-white tracking-tight line-clamp-1 px-4">{currentTrack.title}</h2>
+                    <p className="text-base md:text-lg text-zuno-muted font-medium">{currentTrack.artist}</p>
                 </div>
             </div>
 
             {/* Bottom Controls (Glass Card) */}
             {/* Bottom Controls (Green Glass Card) */}
-            <div className="relative z-10 p-4 md:p-6 pb-8 md:pb-12">
-                <div className="bg-gradient-to-b from-white/10 to-black/40 backdrop-blur-3xl border border-white/10 rounded-[40px] p-6 md:p-8 shadow-2xl overflow-hidden relative">
+            <div className="relative z-10 p-4 md:p-6 pb-safe md:pb-12 shrink-0">
+                <div className="bg-gradient-to-b from-white/10 to-black/40 backdrop-blur-3xl border border-white/10 rounded-[32px] md:rounded-[40px] p-4 md:p-8 shadow-2xl overflow-hidden relative">
 
                     {/* Subtle Green Tint Glow */}
                     <div className="absolute inset-0 bg-zuno-accent/5 pointer-events-none mix-blend-overlay" />
 
                     {/* Row 1: Time & Waveform Scrubber */}
-                    <div className="flex items-center gap-4 mb-8 relative z-10">
+                    <div className="flex items-center gap-4 mb-6 md:mb-8 relative z-10">
                         <span className="text-xs font-mono font-medium text-white/60 w-10 text-right">{formatTime(currentTime)}</span>
 
                         <div className="relative flex-1 h-12 flex items-center justify-center gap-[3px] group">
@@ -312,18 +312,18 @@ export const FullScreenPlayer: React.FC = () => {
 
                         <div className="flex items-center gap-6 md:gap-10">
                             <button onClick={prevTrack} className="text-white hover:text-zuno-accent transition-colors opacity-80 hover:opacity-100">
-                                <SkipBack size={28} fill="currentColor" strokeWidth={0} />
+                                <SkipBack size={24} className="md:w-7 md:h-7" fill="currentColor" strokeWidth={0} />
                             </button>
 
                             <button
                                 onClick={togglePlay}
-                                className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.3)] active:scale-95"
+                                className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-full flex items-center justify-center text-black hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.3)] active:scale-95"
                             >
-                                {isPlaying ? <Pause size={32} fill="currentColor" strokeWidth={0} /> : <Play size={32} fill="currentColor" strokeWidth={0} className="ml-1" />}
+                                {isPlaying ? <Pause size={28} className="md:w-8 md:h-8" fill="currentColor" strokeWidth={0} /> : <Play size={28} className="md:w-8 md:h-8" fill="currentColor" strokeWidth={0} className="ml-1" />}
                             </button>
 
                             <button onClick={nextTrack} className="text-white hover:text-zuno-accent transition-colors opacity-80 hover:opacity-100">
-                                <SkipForward size={28} fill="currentColor" strokeWidth={0} />
+                                <SkipForward size={24} className="md:w-7 md:h-7" fill="currentColor" strokeWidth={0} />
                             </button>
                         </div>
 
