@@ -14,6 +14,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
     { id: 'home', label: 'Início', icon: Home },
     { id: 'search', label: 'Buscar', icon: Search },
     { id: 'library', label: 'Sua Biblioteca', icon: Library },
+    { id: 'editor', label: 'Magic Studio', icon: Wand2 },
   ];
 
   return (

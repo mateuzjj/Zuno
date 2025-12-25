@@ -1,95 +1,161 @@
 
 import JSZip from 'jszip';
 import { api } from './api';
+import { toast } from '../components/UI/Toast';
 import { Track } from '../types';
 
-interface AlbumInfo {
-    title: string;
-    artist: string;
-    coverUrl: string;
-}
+export const DownloadService = {
+    /**
+     * Downloads a single track as a ZIP containing audio and metadata.
+     */
+    downloadTrack: async (track: Track) => {
+        const toastId = toast.show(`Starting download: ${track.title}...`, 'loading');
 
-export const downloadAlbumAsZip = async (album: AlbumInfo, tracks: Track[], onProgress?: (percent: number, currentItem: string) => void): Promise<void> => {
-    try {
-        const zip = new JSZip();
-        // Create a folder inside the zip
-        const safeTitle = album.title.replace(/[^a-z0-9]/gi, '_');
-        const safeArtist = album.artist.replace(/[^a-z0-9]/gi, '_');
-        const folderName = `${safeArtist} - ${safeTitle}`;
-        const folder = zip.folder(folderName);
+        try {
+            // 1. Get Stream URL
+            const streamUrl = await api.getStreamUrl(track.id);
 
-        if (!folder) throw new Error("Failed to create folder in zip");
+            // 2. Fetch Audio Blob
+            // Note: In a real browser environment, CORS might be an issue with some APIs.
+            // We assume the API proxy handles this or we are in a permissive env.
+            const response = await fetch(streamUrl);
+            if (!response.ok) throw new Error('Failed to fetch audio stream');
+            const audioBlob = await response.blob();
 
-        // Helper to fetch blob
-        const fetchBlob = async (url: string) => {
+            // 3. Prepare Metadata
+            const metadata = {
+                title: track.title,
+                artist: track.artist,
+                album: track.album,
+                id: track.id,
+                downloadDate: new Date().toISOString()
+            };
+
+            // 4. Create ZIP
+            let zip;
             try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`Failed to fetch ${url}`);
-                return response.blob();
+                zip = new JSZip();
             } catch (e) {
-                console.warn(`Failed to fetch blob from ${url}`, e);
-                return null;
-            }
-        }
-
-        // 1. Add Cover
-        if (album.coverUrl) {
-            const coverBlob = await fetchBlob(album.coverUrl);
-            if (coverBlob) {
-                folder.file("cover.jpg", coverBlob);
-            }
-        }
-
-        // 2. Add Tracks
-        let completed = 0;
-        const total = tracks.length + 1; // +1 for zip generation
-
-        for (let i = 0; i < tracks.length; i++) {
-            const track = tracks[i];
-            const trackNum = i + 1;
-            const fileName = `${trackNum.toString().padStart(2, '0')} - ${track.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
-
-            if (onProgress) onProgress(Math.round((completed / total) * 100), `Downloading ${track.title}...`);
-
-            try {
-                // Get the real stream URL using the API
-                const streamUrl = await api.getStreamUrl(track.id);
-
-                // Fetch the audio data
-                const audioBlob = await fetchBlob(streamUrl);
-
-                if (audioBlob) {
-                    folder.file(fileName, audioBlob);
+                // Fallback for ESM/CommonJS mismatch
+                if ((JSZip as any).default) {
+                    zip = new (JSZip as any).default();
                 } else {
-                    folder.file(fileName + ".error.txt", "Failed to download audio blob");
+                    throw e;
+                }
+            }
+            const safeTitle = track.title.replace(/[^a-z0-9]/gi, '_');
+
+            zip.file(`${safeTitle}.mp3`, audioBlob); // Assuming MP3 for simplicity, realistically could be FLAC/AAC
+            zip.file(`${safeTitle}.json`, JSON.stringify(metadata, null, 2));
+
+            // Try to add cover
+            try {
+                if (track.coverUrl) {
+                    const coverResp = await fetch(track.coverUrl);
+                    if (coverResp.ok) {
+                        const coverBlob = await coverResp.blob();
+                        zip.file('cover.jpg', coverBlob);
+                    }
                 }
             } catch (e) {
-                console.error(`Failed to process track ${track.title}`, e);
-                folder.file(fileName + ".error.txt", `Failed to process: ${e}`);
+                console.warn('Could not fetch cover for zip');
             }
 
-            completed++;
+            // 5. Generate and Downlod
+            const content = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(content);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${safeTitle}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.show(`Downloaded ${track.title}`, 'success');
+
+        } catch (error: any) {
+            console.error('Download failed', error);
+            toast.show(`Download failed: ${error.message}`, 'error');
         }
+    },
 
-        // 3. Generate ZIP
-        if (onProgress) onProgress(90, "Compressing...");
+    /**
+     * Downloads an entire album as a ZIP folder.
+     */
+    downloadAlbum: async (albumTitle: string, tracks: Track[]) => {
+        if (tracks.length === 0) return;
 
-        const content = await zip.generateAsync({ type: "blob" });
+        const toastId = toast.show(`Preparing album: ${albumTitle} (${tracks.length} tracks)...`, 'loading');
 
-        // 4. Trigger Download
-        const url = URL.createObjectURL(content);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${folderName}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        try {
+            let zip;
+            try {
+                zip = new JSZip();
+            } catch (e) {
+                if ((JSZip as any).default) {
+                    zip = new (JSZip as any).default();
+                } else {
+                    throw e;
+                }
+            }
+            const albumFolder = zip.folder(albumTitle.replace(/[^a-z0-9]/gi, '_'));
 
-        if (onProgress) onProgress(100, "Done!");
+            if (!albumFolder) throw new Error("Failed to create zip folder");
 
-    } catch (error) {
-        console.error("Download failed", error);
-        throw error;
+            let completed = 0;
+
+            // Process sequentially to avoid rate limits
+            for (const track of tracks) {
+                try {
+                    // Update toast occasionally
+                    if (completed % 2 === 0) {
+                        // We can't easily update the existing toast text in this simple implementation, 
+                        // but we could send a new one or just rely on the loading state.
+                    }
+
+                    const streamUrl = await api.getStreamUrl(track.id);
+                    const response = await fetch(streamUrl);
+                    if (!response.ok) continue; // Skip failed tracks but continue album
+
+                    const audioBlob = await response.blob();
+                    const safeTitle = track.title.replace(/[^a-z0-9]/gi, '_');
+
+                    albumFolder.file(`${safeTitle}.mp3`, audioBlob);
+
+                    // Metadata
+                    albumFolder.file(`${safeTitle}.json`, JSON.stringify({
+                        ...track,
+                        downloadedFrom: 'Zuno'
+                    }, null, 2));
+
+                    completed++;
+                } catch (e) {
+                    console.warn(`Failed to download ${track.title}`, e);
+                }
+            }
+
+            if (completed === 0) {
+                throw new Error("No tracks could be downloaded");
+            }
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(content);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${albumTitle}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.show(`Downloaded album ${albumTitle}`, 'success');
+
+        } catch (error: any) {
+            console.error('Album download failed', error);
+            toast.show(`Album download failed: ${error.message}`, 'error');
+        }
     }
-}
+};

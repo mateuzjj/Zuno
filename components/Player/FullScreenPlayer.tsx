@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePlayer } from '../../store/PlayerContext';
-import { Play, Pause, SkipBack, SkipForward, ChevronDown, Shuffle, Repeat, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, ChevronDown, Shuffle, Repeat, Volume2, Volume1, VolumeX, Download } from 'lucide-react';
+import { DownloadService } from '../../services/download';
+import { toast } from '../UI/Toast';
 
 export const FullScreenPlayer: React.FC = () => {
     const {
@@ -187,13 +189,14 @@ export const FullScreenPlayer: React.FC = () => {
                     <h3 className="text-xs font-bold tracking-[0.2em] text-zuno-muted uppercase">Tocando</h3>
                     <p className="text-xs font-bold text-white uppercase tracking-widest">{currentTrack.album || 'Single'}</p>
                 </div>
-                <button className="w-10 h-10 flex items-center justify-center text-white/70">
-                    {/* Simple Menu Icon */}
-                    <div className="space-y-1">
-                        <div className="w-1 h-1 bg-white rounded-full"></div>
-                        <div className="w-1 h-1 bg-white rounded-full"></div>
-                        <div className="w-1 h-1 bg-white rounded-full"></div>
-                    </div>
+                <button
+                    className="w-10 h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                    onClick={() => {
+                        toast.show('Downloading...', 'info');
+                        DownloadService.downloadTrack(currentTrack);
+                    }}
+                >
+                    <Download size={24} />
                 </button>
             </div>
 

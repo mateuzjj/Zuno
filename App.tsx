@@ -13,6 +13,7 @@ import { View } from './types';
 
 import { ArtistPage } from './pages/Artist';
 import { AlbumPage } from './pages/Album';
+import { ToastContainer } from './components/UI/Toast';
 
 // Main App component that handles "routing" via state for simplicity in this SPA demo
 const ZunoApp: React.FC = () => {
@@ -58,6 +59,7 @@ const App: React.FC = () => {
   return (
     <PlayerProvider>
       <ZunoApp />
+      <ToastContainer />
     </PlayerProvider>
   );
 };

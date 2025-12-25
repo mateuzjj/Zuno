@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Sparkles, Clock, Calendar, ArrowLeft, Download } from 'lucide-react';
 import { ZunoAPI } from '../services/zunoApi';
-import { downloadAlbumAsZip } from '../services/download';
+import { DownloadService } from '../services/download';
 import { Album, Track } from '../types';
 import { usePlayer } from '../store/PlayerContext';
 
@@ -15,9 +15,6 @@ export const AlbumPage: React.FC<AlbumPageProps> = ({ albumId, onBack }) => {
     const [album, setAlbum] = useState<Partial<Album> | null>(null);
     const [tracks, setTracks] = useState<Track[]>([]);
     const [loading, setLoading] = useState(true);
-    const [downloading, setDownloading] = useState(false);
-    const [downloadProgress, setDownloadProgress] = useState(0);
-    const [downloadStatus, setDownloadStatus] = useState('');
 
     useEffect(() => {
         const loadData = async () => {
@@ -35,33 +32,6 @@ export const AlbumPage: React.FC<AlbumPageProps> = ({ albumId, onBack }) => {
 
         if (albumId) loadData();
     }, [albumId]);
-
-    const handleDownload = async () => {
-        if (!album || !tracks.length) return;
-        setDownloading(true);
-        setDownloadProgress(0);
-
-        try {
-            await downloadAlbumAsZip(
-                {
-                    title: album.title!,
-                    artist: album.artist!,
-                    coverUrl: album.coverUrl!
-                },
-                tracks,
-                (percent, status) => {
-                    setDownloadProgress(percent);
-                    setDownloadStatus(status);
-                }
-            );
-        } catch (error) {
-            alert("Failed to download album. See console for details.");
-        } finally {
-            setDownloading(false);
-            setDownloadProgress(0);
-            setDownloadStatus('');
-        }
-    };
 
     if (loading) {
         return (
@@ -108,42 +78,21 @@ export const AlbumPage: React.FC<AlbumPageProps> = ({ albumId, onBack }) => {
                         </div>
                     </div>
 
-                    <div className="flex gap-4">
-                        <button
-                            onClick={() => tracks.length > 0 && playTrack(tracks[0])}
-                            className="bg-zuno-accent text-black w-14 h-14 rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg shadow-green-500/30"
-                        >
-                            <Play fill="currentColor" size={24} className="ml-1" />
-                        </button>
-
-                        <button
-                            onClick={handleDownload}
-                            disabled={downloading}
-                            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all bg-white/10 hover:bg-white/20 hover:scale-105 ${downloading ? 'cursor-wait animate-pulse' : ''}`}
-                            title="Download Album as ZIP"
-                        >
-                            {downloading ? (
-                                <span className="text-xs font-mono text-zuno-accent">{downloadProgress}%</span>
-                            ) : (
-                                <Download size={24} />
-                            )}
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => tracks.length > 0 && playTrack(tracks[0])}
+                        className="bg-zuno-accent text-black w-14 h-14 rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg shadow-green-500/30"
+                    >
+                        <Play fill="currentColor" size={24} className="ml-1" />
+                    </button>
+                    <button
+                        onClick={() => album.title && DownloadService.downloadAlbum(album.title, tracks)}
+                        className="bg-white/10 text-white w-14 h-14 rounded-full flex items-center justify-center hover:scale-110 hover:bg-white/20 transition-all backdrop-blur-md border border-white/10"
+                        title="Download Album"
+                    >
+                        <Download size={24} />
+                    </button>
                 </div>
             </div>
-
-            {/* Download Status Bar */}
-            {downloading && (
-                <div className="fixed bottom-24 right-8 bg-gray-900 border border-zuno-accent/20 p-4 rounded-lg shadow-xl z-50 flex flex-col gap-2 w-64 animate-in slide-in-from-bottom-5">
-                    <div className="flex justify-between text-xs text-gray-400">
-                        <span>{downloadStatus}</span>
-                        <span>{downloadProgress}%</span>
-                    </div>
-                    <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-zuno-accent transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
-                    </div>
-                </div>
-            )}
 
             <div className="px-4">
                 {/* Tracklist */}

@@ -1,6 +1,8 @@
 import React from 'react';
 import { usePlayer } from '../../store/PlayerContext';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize2, Download } from 'lucide-react';
+import { DownloadService } from '../../services/download';
+import { toast } from '../UI/Toast';
 import { PlayerStatus } from '../../types';
 
 export const PlayerBar: React.FC = () => {
@@ -94,6 +96,16 @@ export const PlayerBar: React.FC = () => {
 
         {/* Volume & Extras (Desktop only) */}
         <div className="hidden md:flex items-center justify-end w-1/3 gap-4">
+          <button
+            className="text-zuno-muted hover:text-white"
+            onClick={() => {
+              toast.show('Downloading...', 'info');
+              DownloadService.downloadTrack(currentTrack);
+            }}
+            title="Download Track"
+          >
+            <Download size={18} />
+          </button>
           <button className="text-zuno-muted hover:text-white">
             <Maximize2 size={18} />
           </button>
