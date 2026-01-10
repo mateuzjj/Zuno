@@ -1,12 +1,19 @@
 // Spotify OAuth PKCE Authentication
 
-const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+// TEMPORARY: Hardcoded fallback while Netlify env var is being configured
+// TODO: Remove this once VITE_SPOTIFY_CLIENT_ID is properly set in Netlify
+const FALLBACK_CLIENT_ID = '4abe3f7f4bde4b66807e5a1a24740e7';
+
+const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || FALLBACK_CLIENT_ID;
 
 // Validate CLIENT_ID is configured
 if (!CLIENT_ID || CLIENT_ID === 'undefined') {
     console.error('[SpotifyAuth] CRITICAL: VITE_SPOTIFY_CLIENT_ID is not configured!');
     console.error('[SpotifyAuth] Please ensure the environment variable is set in your .env file or Netlify dashboard');
     console.error('[SpotifyAuth] Current value:', CLIENT_ID);
+} else if (CLIENT_ID === FALLBACK_CLIENT_ID) {
+    console.warn('[SpotifyAuth] WARNING: Using hardcoded CLIENT_ID fallback');
+    console.warn('[SpotifyAuth] Please configure VITE_SPOTIFY_CLIENT_ID in Netlify for production');
 }
 
 // Dynamic redirect URI - works with localhost and LAN IPs
