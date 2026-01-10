@@ -2,6 +2,13 @@
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
 
+// Validate CLIENT_ID is configured
+if (!CLIENT_ID || CLIENT_ID === 'undefined') {
+    console.error('[SpotifyAuth] CRITICAL: VITE_SPOTIFY_CLIENT_ID is not configured!');
+    console.error('[SpotifyAuth] Please ensure the environment variable is set in your .env file or Netlify dashboard');
+    console.error('[SpotifyAuth] Current value:', CLIENT_ID);
+}
+
 // Dynamic redirect URI - works with localhost and LAN IPs
 const getRedirectUri = () => {
     const origin = window.location.origin;
@@ -9,6 +16,9 @@ const getRedirectUri = () => {
 };
 
 const REDIRECT_URI = getRedirectUri();
+
+console.log('[SpotifyAuth] Initialized with CLIENT_ID:', CLIENT_ID ? `${CLIENT_ID.substring(0, 8)}...` : 'MISSING');
+console.log('[SpotifyAuth] Redirect URI:', REDIRECT_URI);
 
 const SCOPES = [
     'user-library-read',
@@ -45,6 +55,13 @@ function base64encode(input: ArrayBuffer): string {
  * Initiate Spotify OAuth login
  */
 export async function loginWithSpotify(): Promise<void> {
+    // Validate CLIENT_ID before starting auth flow
+    if (!CLIENT_ID || CLIENT_ID === 'undefined') {
+        const errorMsg = 'Spotify Client ID is not configured. Please check your environment variables.';
+        console.error('[SpotifyAuth]', errorMsg);
+        throw new Error(errorMsg);
+    }
+
     // Generate or reuse code_verifier
     let codeVerifier = sessionStorage.getItem('spotify_code_verifier');
 
