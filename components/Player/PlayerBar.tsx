@@ -23,7 +23,7 @@ export const PlayerBar: React.FC = () => {
   const isPlaying = status === PlayerStatus.PLAYING;
 
   return (
-    <div className="fixed bottom-[64px] md:bottom-6 left-2 right-2 md:left-8 md:right-8 bg-zuno-card/95 border border-white/5 p-3 md:p-4 z-50 rounded-2xl md:rounded-3xl backdrop-blur-xl shadow-2xl shadow-black/50 transition-all duration-300 safe-left safe-right" style={{ bottom: 'calc(64px + env(safe-area-inset-bottom))' }}>
+    <div className="fixed left-2 right-2 md:left-8 md:right-8 bg-zuno-card/95 border border-white/5 p-3 md:p-4 z-50 rounded-2xl md:rounded-3xl backdrop-blur-xl shadow-2xl shadow-black/50 transition-all duration-300 safe-left safe-right player-bar-safe">
       <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
 
         {/* Track Info */}
