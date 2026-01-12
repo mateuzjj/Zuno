@@ -3,12 +3,175 @@ import JSZip from 'jszip';
 import { api } from './api';
 import { toast } from '../components/UI/Toast';
 import { Track } from '../types';
+import { getDB } from './db';
 
 export const DownloadService = {
     /**
-     * Downloads a single track as a ZIP containing audio and metadata.
+     * Saves a track to IndexedDB for offline playback (works on Android/iOS browsers)
      */
-    downloadTrack: async (track: Track) => {
+    saveTrackToBrowser: async (track: Track): Promise<boolean> => {
+        const toastId = toast.show(`Salvando ${track.title} no navegador...`, 'loading');
+
+        try {
+            // Check if already downloaded
+            const db = await getDB();
+            const existing = await db.get('downloadedTracks', track.id);
+            if (existing) {
+                toast.show(`${track.title} já está salva!`, 'info');
+                return true;
+            }
+
+            // 1. Get Stream URL
+            const streamUrl = await api.getStreamUrl(track.id);
+
+            // 2. Fetch Audio Blob
+            const response = await fetch(streamUrl);
+            if (!response.ok) throw new Error('Failed to fetch audio stream');
+            const audioBlob = await response.blob();
+            const fileSize = audioBlob.size;
+
+            // 3. Fetch Cover (optional)
+            let coverBlob: Blob | undefined;
+            try {
+                if (track.coverUrl) {
+                    const coverResp = await fetch(track.coverUrl);
+                    if (coverResp.ok) {
+                        coverBlob = await coverResp.blob();
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not fetch cover');
+            }
+
+            // 4. Save to IndexedDB
+            await db.put('downloadedTracks', {
+                track: {
+                    ...track,
+                    // Create a blob URL for playback
+                    streamUrl: '', // Will be generated on demand
+                },
+                audioBlob,
+                coverBlob,
+                downloadedAt: Date.now(),
+                fileSize,
+            });
+
+            toast.show(`✅ ${track.title} salva com sucesso!`, 'success');
+            return true;
+        } catch (error: any) {
+            console.error('Save to browser failed', error);
+            toast.show(`Erro ao salvar: ${error.message}`, 'error');
+            return false;
+        }
+    },
+
+    /**
+     * Gets a blob URL for a downloaded track
+     */
+    getDownloadedTrackUrl: async (trackId: string): Promise<string | null> => {
+        try {
+            const db = await getDB();
+            const downloaded = await db.get('downloadedTracks', trackId);
+            if (!downloaded) return null;
+
+            // Create blob URL from stored blob
+            return URL.createObjectURL(downloaded.audioBlob);
+        } catch (error) {
+            console.error('Error getting downloaded track URL', error);
+            return null;
+        }
+    },
+
+    /**
+     * Gets a blob URL for a downloaded track's cover
+     */
+    getDownloadedTrackCoverUrl: async (trackId: string): Promise<string | null> => {
+        try {
+            const db = await getDB();
+            const downloaded = await db.get('downloadedTracks', trackId);
+            if (!downloaded || !downloaded.coverBlob) return null;
+
+            return URL.createObjectURL(downloaded.coverBlob);
+        } catch (error) {
+            console.error('Error getting downloaded cover URL', error);
+            return null;
+        }
+    },
+
+    /**
+     * Checks if a track is downloaded
+     */
+    isTrackDownloaded: async (trackId: string): Promise<boolean> => {
+        try {
+            const db = await getDB();
+            const downloaded = await db.get('downloadedTracks', trackId);
+            return !!downloaded;
+        } catch (error) {
+            return false;
+        }
+    },
+
+    /**
+     * Gets all downloaded tracks
+     */
+    getDownloadedTracks: async (): Promise<Track[]> => {
+        try {
+            const db = await getDB();
+            const all = await db.getAll('downloadedTracks');
+            return all.map(item => item.track);
+        } catch (error) {
+            console.error('Error getting downloaded tracks', error);
+            return [];
+        }
+    },
+
+    /**
+     * Deletes a downloaded track
+     */
+    deleteDownloadedTrack: async (trackId: string): Promise<boolean> => {
+        try {
+            const db = await getDB();
+            await db.delete('downloadedTracks', trackId);
+            toast.show('Música removida', 'success');
+            return true;
+        } catch (error) {
+            console.error('Error deleting downloaded track', error);
+            toast.show('Erro ao remover música', 'error');
+            return false;
+        }
+    },
+
+    /**
+     * Gets storage usage information
+     */
+    getStorageInfo: async (): Promise<{ count: number; totalSize: number }> => {
+        try {
+            const db = await getDB();
+            const all = await db.getAll('downloadedTracks');
+            const totalSize = all.reduce((sum, item) => sum + (item.fileSize || 0), 0);
+            return {
+                count: all.length,
+                totalSize,
+            };
+        } catch (error) {
+            console.error('Error getting storage info', error);
+            return { count: 0, totalSize: 0 };
+        }
+    },
+
+    /**
+     * Downloads a single track as a ZIP containing audio and metadata (traditional download).
+     * For mobile, use saveTrackToBrowser instead.
+     */
+    downloadTrack: async (track: Track, saveToBrowser: boolean = false) => {
+        // If saveToBrowser is true or on mobile, use browser storage
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (saveToBrowser || isMobile) {
+            return await DownloadService.saveTrackToBrowser(track);
+        }
+
+        // Traditional ZIP download for desktop
         const toastId = toast.show(`Starting download: ${track.title}...`, 'loading');
 
         try {

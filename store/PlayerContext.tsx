@@ -74,10 +74,20 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setDuration(track.duration || 0);
 
     try {
-      // 1. Get the stream URL (async operation)
-      const streamUrl = await api.getStreamUrl(track.id);
-
-      if (!streamUrl) throw new Error("Stream URL not found");
+      // 1. Check if track is downloaded locally first
+      const { DownloadService } = await import('../services/download');
+      const downloadedUrl = await DownloadService.getDownloadedTrackUrl(track.id);
+      
+      let streamUrl: string;
+      if (downloadedUrl) {
+        // Use downloaded track from IndexedDB
+        streamUrl = downloadedUrl;
+        console.log('[Player] Using downloaded track from IndexedDB');
+      } else {
+        // Get the stream URL from API (async operation)
+        streamUrl = await api.getStreamUrl(track.id);
+        if (!streamUrl) throw new Error("Stream URL not found");
+      }
 
       // 2. Set Audio Source - use refs to get current values
       audioRef.current.src = streamUrl;

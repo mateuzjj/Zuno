@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Sparkles, Clock, Calendar, ArrowLeft, Download } from 'lucide-react';
+import { Play, Sparkles, Clock, Calendar, ArrowLeft, Download, CheckCircle2 } from 'lucide-react';
 import { ZunoAPI } from '../services/zunoApi';
 import { DownloadService } from '../services/download';
 import { Album, Track } from '../types';
@@ -15,6 +15,7 @@ export const AlbumPage: React.FC<AlbumPageProps> = ({ albumId, onBack }) => {
     const [album, setAlbum] = useState<Partial<Album> | null>(null);
     const [tracks, setTracks] = useState<Track[]>([]);
     const [loading, setLoading] = useState(true);
+    const [downloadedTrackIds, setDownloadedTrackIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         const loadData = async () => {
@@ -23,6 +24,8 @@ export const AlbumPage: React.FC<AlbumPageProps> = ({ albumId, onBack }) => {
                 const data = await ZunoAPI.getAlbum(albumId);
                 setAlbum(data.album);
                 setTracks(data.tracks);
+                // Refresh download status when album is loaded
+                await checkDownloadedTracks();
             } catch (err) {
                 console.error("Failed to load album", err);
             } finally {
@@ -30,8 +33,20 @@ export const AlbumPage: React.FC<AlbumPageProps> = ({ albumId, onBack }) => {
             }
         };
 
-        if (albumId) loadData();
+        if (albumId) {
+            loadData();
+        }
     }, [albumId]);
+
+    const checkDownloadedTracks = async () => {
+        try {
+            const downloaded = await DownloadService.getDownloadedTracks();
+            const downloadedIds = new Set(downloaded.map(t => t.id));
+            setDownloadedTrackIds(downloadedIds);
+        } catch (error) {
+            console.error('Failed to check downloaded tracks', error);
+        }
+    };
 
     if (loading) {
         return (
@@ -105,7 +120,17 @@ export const AlbumPage: React.FC<AlbumPageProps> = ({ albumId, onBack }) => {
                         >
                             <span className="text-gray-500 w-8 text-center font-mono text-lg">{idx + 1}</span>
                             <div className="flex-1">
-                                <h4 className="font-medium text-white group-hover:text-zuno-accent transition-colors text-lg">{track.title}</h4>
+                                <div className="flex items-center gap-2">
+                                    <h4 className="font-medium text-white group-hover:text-zuno-accent transition-colors text-lg">{track.title}</h4>
+                                    {downloadedTrackIds.has(track.id) && (
+                                        <CheckCircle2 
+                                            size={16} 
+                                            className="text-zuno-accent flex-shrink-0" 
+                                            fill="currentColor"
+                                            title="Música salva offline"
+                                        />
+                                    )}
+                                </div>
                                 <p className="text-sm text-gray-400">{track.artist}</p>
                             </div>
                             <span className="text-sm text-gray-500 font-mono">

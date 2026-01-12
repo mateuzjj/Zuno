@@ -184,9 +184,16 @@ export const FullScreenPlayer: React.FC = () => {
 
                 <button
                     className="w-10 h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors"
-                    onClick={() => {
-                        toast.show('Downloading...', 'info');
-                        DownloadService.downloadTrack(currentTrack);
+                    onClick={async () => {
+                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                        if (isMobile) {
+                            // On mobile, save to browser storage
+                            await DownloadService.downloadTrack(currentTrack, true);
+                        } else {
+                            // On desktop, show option or auto-detect
+                            const saveToBrowser = window.confirm('Salvar no navegador para uso offline? (Sim) ou Baixar ZIP? (Não)');
+                            await DownloadService.downloadTrack(currentTrack, saveToBrowser);
+                        }
                     }}
                 >
                     <Download size={24} />

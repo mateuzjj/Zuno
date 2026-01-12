@@ -38,10 +38,21 @@ interface ZunoDB extends DBSchema {
         };
         indexes: { 'by-timestamp': number };
     };
+    downloadedTracks: {
+        key: string; // track.id
+        value: {
+            track: Track;
+            audioBlob: Blob;
+            coverBlob?: Blob;
+            downloadedAt: number;
+            fileSize: number;
+        };
+        indexes: { 'by-downloadedAt': number };
+    };
 }
 
 const DB_NAME = 'ZunoMusicDB';
-const DB_VERSION = 3; // Incremented to clear lyrics cache
+const DB_VERSION = 4; // Incremented to add downloadedTracks store
 
 let dbInstance: IDBPDatabase<ZunoDB> | null = null;
 
@@ -87,6 +98,12 @@ export async function getDB(): Promise<IDBPDatabase<ZunoDB>> {
             if (!db.objectStoreNames.contains('recommendationsCache')) {
                 const recStore = db.createObjectStore('recommendationsCache', { keyPath: 'key' });
                 recStore.createIndex('by-timestamp', 'timestamp');
+            }
+
+            // Create downloadedTracks store
+            if (!db.objectStoreNames.contains('downloadedTracks')) {
+                const downloadedStore = db.createObjectStore('downloadedTracks', { keyPath: 'track.id' });
+                downloadedStore.createIndex('by-downloadedAt', 'downloadedAt');
             }
         },
     });

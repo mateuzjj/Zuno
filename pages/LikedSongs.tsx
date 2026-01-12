@@ -2,16 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { LikedSongsService } from '../services/likedSongsService';
 import { Track } from '../types';
 import { usePlayer } from '../store/PlayerContext';
-import { Heart, Play } from 'lucide-react';
+import { Heart, Play, CheckCircle2 } from 'lucide-react';
+import { DownloadService } from '../services/download';
 
 export const LikedSongs: React.FC = () => {
     const [likedTracks, setLikedTracks] = useState<Track[]>([]);
     const [loading, setLoading] = useState(true);
+    const [downloadedTrackIds, setDownloadedTrackIds] = useState<Set<string>>(new Set());
     const { playTrack, currentTrack, status } = usePlayer();
 
     useEffect(() => {
         loadLikedTracks();
     }, []);
+
+    const checkDownloadedTracks = async () => {
+        try {
+            const downloaded = await DownloadService.getDownloadedTracks();
+            const downloadedIds = new Set(downloaded.map(t => t.id));
+            setDownloadedTrackIds(downloadedIds);
+        } catch (error) {
+            console.error('Failed to check downloaded tracks', error);
+        }
+    };
 
     const loadLikedTracks = async () => {
         setLoading(true);
@@ -100,9 +112,19 @@ export const LikedSongs: React.FC = () => {
 
                                 {/* Track Info */}
                                 <div className="flex-1 min-w-0">
-                                    <h3 className={`font-semibold truncate ${isPlaying ? 'text-zuno-accent' : 'text-white'}`}>
-                                        {track.title}
-                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className={`font-semibold truncate ${isPlaying ? 'text-zuno-accent' : 'text-white'}`}>
+                                            {track.title}
+                                        </h3>
+                                        {downloadedTrackIds.has(track.id) && (
+                                            <CheckCircle2 
+                                                size={16} 
+                                                className="text-zuno-accent flex-shrink-0" 
+                                                fill="currentColor"
+                                                title="Música salva offline"
+                                            />
+                                        )}
+                                    </div>
                                     <p className="text-sm text-zuno-muted truncate">{track.artist}</p>
                                 </div>
 
