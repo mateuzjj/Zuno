@@ -48,7 +48,7 @@ export const PlayerBar: React.FC = () => {
                 <Maximize2 size={20} className="text-white" />
               </div>
             </div>
-            <div className="hidden md:block overflow-hidden flex-1 min-w-0">
+            <div className="block overflow-hidden flex-1 min-w-0">
               <h4 className="text-sm font-bold text-white truncate hover:underline cursor-pointer">
                 {currentTrack.title}
               </h4>
