@@ -10,7 +10,8 @@ import { ZunoAPI } from './zunoApi';
  */
 
 // Cache duration for recommendations (1 hour)
-const CACHE_DURATION_MS = 60 * 60 * 1000;
+// Cache duration for recommendations (Reduced for better rotation)
+const CACHE_DURATION_MS = 1000; // 1 second (effectively no cache for now)
 
 /**
  * Get audio features vector for a track
@@ -110,10 +111,10 @@ export async function getCollaborativeRecommendations(
         .map(track => {
             const trackVector = getTrackVector(track);
             const similarity = cosineSimilarity(userProfile, trackVector);
-            
+
             // Boost tracks from artists user likes
             const artistBoost = userHistory.some(h => h.artist === track.artist) ? 0.1 : 0;
-            
+
             return { track, score: similarity + artistBoost };
         })
         .sort((a, b) => b.score - a.score)

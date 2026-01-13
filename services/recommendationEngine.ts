@@ -107,7 +107,7 @@ export const getCollaborativeRecommendations = async (likedTrackId: string): Pro
     try {
         // First, get the track details
         const track = await api.search(likedTrackId).then(results => results[0]);
-        
+
         if (!track) {
             // Fallback to Spotify API
             const recommendations = await SpotifyClient.getRecommendations(
@@ -149,7 +149,7 @@ export const generatePlaylistFromSeeds = async (
         return recommendations;
     } catch (error) {
         console.error('Failed to generate playlist with hybrid engine, falling back to Spotify:', error);
-        
+
         // Fallback to simple Spotify recommendations
         try {
             const seedIds = seeds.map(t => t.id);
@@ -206,62 +206,8 @@ export const rankTracks = (tracks: Track[], userProfile: { energy: number, valen
         .map(({ _score, ...track }: any) => track); // Remove score
 };
 
-// 6. AI-Powered Recommendations (Gemini -> Spotify Direct Search)
-export const getAIRecommendations = async (context: ContextType): Promise<Track[]> => {
-    console.log(`[Engine] Generating AI playlist for context: ${context}`);
-    try {
-        // Import AI service dynamically
-        const { generateTrackList } = await import('./geminiService');
-        
-        // 1. Ask AI for a list of songs
-        const aiTracks = await generateTrackList(context);
-
-        if (!aiTracks || aiTracks.length === 0) {
-            console.warn('[Engine] AI returned empty list, falling back to seeds');
-            return getTracksByContext(context);
-        }
-
-        console.log(`[Engine] AI suggested ${aiTracks.length} tracks, searching Spotify...`);
-
-        // 2. Search SPOTIFY DIRECTLY for each track (not Zuno catalog)
-        const searchPromises = aiTracks.map(async (t) => {
-            const query = `track:${t.title} artist:${t.artist}`;
-            try {
-                // Use Spotify's native search to find ANY track, not just what's in Zuno's DB
-                const spotifyResults = await SpotifyClient.search(query, ['track'], 1);
-
-                if (spotifyResults.tracks && spotifyResults.tracks.length > 0) {
-                    const spotifyTrack = spotifyResults.tracks[0];
-                    // Convert to Zuno Track format
-                    return mapSpotifyToTrack(spotifyTrack);
-                }
-                return null;
-            } catch (e) {
-                console.warn(`[Engine] Failed to find: ${t.artist} - ${t.title}`);
-                return null;
-            }
-        });
-
-        const results = await Promise.all(searchPromises);
-
-        // Filter out nulls (failed searches)
-        const validTracks = results.filter((t): t is Track => t !== null);
-
-        console.log(`[Engine] Found ${validTracks.length}/${aiTracks.length} tracks on Spotify`);
-
-        if (validTracks.length < 3) {
-            console.warn('[Engine] Too few valid matches found, merging with seed results');
-            const seeds = await getTracksByContext(context);
-            return [...validTracks, ...seeds];
-        }
-
-        return validTracks;
-
-    } catch (error) {
-        console.error('[Engine] AI Recommendation Failed:', error);
-        return getTracksByContext(context);
-    }
-};
+// 6. AI-Powered Recommendations
+// Previous Gemini implementation has been removed in favor of Hybrid Engine.
 
 export const RecommendationEngine = {
     getTracksByContext,
@@ -269,6 +215,6 @@ export const RecommendationEngine = {
     generatePlaylistFromSeeds,
     calculateUserVector,
     rankTracks,
-    getAIRecommendations
+    // getAIRecommendations // Removed
 };
 

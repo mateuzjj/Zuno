@@ -24,14 +24,14 @@ const detectContextFromKeywords = (input: string): ContextType => {
 
 export const ZunoAPI = {
     detectContext: async (input: string): Promise<ContextType> => {
-        return detectContextFromKeywords(input);
+        // Legacy support only - defaults to 'Chill'
+        return 'Chill';
     },
 
     /**
-     * Performs a Smart Search with Spotify Recommendations:
+     * Performs a Smart Search:
      * 1. Searches the Catalog (Real Data)
-     * 2. Detects Context from Keywords
-     * 3. Gets Spotify Recommendations for Similar Tracks
+     * 2. Returns results ranked by user profile
      */
     searchHybrid: async (query: string) => {
         // 1. Catalog Search
@@ -40,158 +40,166 @@ export const ZunoAPI = {
         // Save to history
         ZunoAPI.saveSearch(query);
 
-        // 2. Detect context from query
-        const context = detectContextFromKeywords(query);
-
-        // 3. Get Spotify-based recommendations (not AI)
-        const spotifyResults = catalogResults.length > 0
-            ? await getTracksByContext(context)
-            : [];
-
-        // 4. Personalization: Rank by user taste
+        // 2. Personalization: Rank by user taste
         const userProfile = await ZunoAPI.getUserProfile();
         const safeRank = (tracks: Track[], profile: any) => {
             return (typeof rankTracks === 'function') ? rankTracks(tracks, profile) : tracks;
         };
 
         const rankedCatalog = safeRank(catalogResults, userProfile);
-        const rankedSpotify = safeRank(spotifyResults, userProfile);
 
         return {
-            context,
+            context: 'Chill' as ContextType,
             intent: 'general',
-            analysis: { context, intent: 'general', similarEntities: [], vibeParams: {} },
+            analysis: { context: 'Chill', intent: 'general', similarEntities: [], vibeParams: {} },
             catalogResults: rankedCatalog,
             similarResults: [],
-            aiResults: rankedSpotify // Actually Spotify results, not AI
+            aiResults: []
         };
     },
 
     getRecommendations: async (context: ContextType): Promise<Track[]> => {
-        return await getTracksByContext(context);
+        // Deprecated: Just returns personalized tracks
+        const history = ZunoAPI.getValidHistory();
+        if (history.length > 0) {
+            return await getCollaborativeRecommendations(history[0].id);
+        }
+        return await api.search('trending');
     },
 
     /**
-     * Generates the next section for the Home Feed.
-     * Smart system with caching and duplicate prevention.
+     * Generates PERSONALIZED Home Feed Sections.
+     * No more generic 'Workout' or 'Rainy' playlists.
      */
     getNextFeedSection: async (offset: number, excludeIds: string[] = []) => {
-        // NO CACHE - Always fresh recommendations
-
-        // TRUE random strategy selection
-        const allStrategies = [
-            'spotify_recommendations',
-            'genre_deep_dive',
-            'artist_radio',
-            'decade_throwback',
-            'mood_playlist',
-            'trending_hits'
-        ];
-
-        // Pure random selection (not based on offset)
-        const selectedStrategy = allStrategies[Math.floor(Math.random() * allStrategies.length)];
-
-        // Helper to filter duplicates, rank, and SHUFFLE
+        // Helper to mix and clean tracks
         const processTracks = async (rawTracks: Track[]) => {
             const unique = rawTracks.filter(t => !excludeIds.includes(t.id));
             const profile = await ZunoAPI.getUserProfile();
             const ranked = (typeof rankTracks === 'function') ? rankTracks(unique, profile) : unique;
-            // SHUFFLE for variety
-            return ranked.sort(() => Math.random() - 0.5);
+            return ranked.length > 0 ? ranked : unique;
         };
 
         let section: { title: string, subtitle: string, tracks: Track[] };
 
         try {
-            if (selectedStrategy === 'spotify_recommendations') {
-                const contexts: ContextType[] = ['Workout', 'Focus', 'Party', 'Chill', 'Morning', 'Rainy'];
-                const context = contexts[Math.floor(Math.random() * contexts.length)];
-                let tracks = await getTracksByContext(context);
-                tracks = await processTracks(tracks);
+            // STRATEGY 1: "Made For You" (Based on User's Top Artists)
+            // Occurs frequently
+            if (offset % 3 === 0) {
+                const history = ZunoAPI.getValidHistory();
+                if (history.length > 0) {
+                    // Get most frequented artist
+                    const artistCounts: Record<string, number> = {};
+                    history.forEach(t => {
+                        const artist = t.artist;
+                        artistCounts[artist] = (artistCounts[artist] || 0) + 1;
+                    });
 
-                section = {
-                    title: `${context} Vibes`,
-                    subtitle: 'Spotify Recommendations',
-                    tracks: tracks.slice(0, 15)
-                };
-            } else if (selectedStrategy === 'genre_deep_dive') {
-                const genres = [
-                    'Electronic', 'Rock', 'Hip Hop', 'Jazz', 'Indie', 'Classical',
-                    'R&B', 'Pop', 'Metal', 'Country', 'Reggae', 'Blues', 'Soul', 'Funk'
-                ];
-                const genre = genres[Math.floor(Math.random() * genres.length)];
-                let tracks = await api.search(genre);
-                tracks = await processTracks(tracks);
+                    // Get a random top artist (not always #1 to vary the feed)
+                    const topArtists = Object.entries(artistCounts)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5)
+                        .map(e => e[0]);
 
-                section = {
-                    title: `${genre} Mix`,
-                    subtitle: 'Explore the sound',
-                    tracks: tracks.slice(0, 15)
-                };
-            } else if (selectedStrategy === 'artist_radio') {
-                const artists = [
-                    'The Weeknd', 'Daft Punk', 'Tame Impala', 'Arctic Monkeys',
-                    'Billie Eilish', 'Travis Scott', 'Frank Ocean', 'Tyler The Creator',
-                    'Mac Miller', 'Kendrick Lamar', 'SZA', 'Post Malone'
-                ];
-                const artist = artists[Math.floor(Math.random() * artists.length)];
-                let tracks = await api.search(artist);
-                tracks = await processTracks(tracks);
+                    if (topArtists.length > 0) {
+                        const selectedArtist = topArtists[Math.floor(Math.random() * topArtists.length)];
 
-                section = {
-                    title: `${artist} Radio`,
-                    subtitle: 'And similar artists',
-                    tracks: tracks.slice(0, 15)
-                };
-            } else if (selectedStrategy === 'decade_throwback') {
-                const decades = [
-                    '60s Rock', '70s Disco', '80s Pop', '90s Hip Hop',
-                    '2000s Indie', '2010s EDM', '80s Synthwave', '90s Grunge'
-                ];
-                const decade = decades[Math.floor(Math.random() * decades.length)];
-                let tracks = await api.search(decade);
-                tracks = await processTracks(tracks);
+                        // 1. Get tracks by the main artist
+                        const mainTracks = await api.search(selectedArtist);
 
-                section = {
-                    title: `${decade} Throwback`,
-                    subtitle: 'Classic hits',
-                    tracks: tracks.slice(0, 15)
-                };
-            } else if (selectedStrategy === 'mood_playlist') {
-                const moods = ['Happy', 'Chill', 'Sad', 'Energetic', 'Romantic', 'Angry'];
-                const mood = moods[Math.floor(Math.random() * moods.length)];
-                let tracks = await api.search(`${mood} Music`);
-                tracks = await processTracks(tracks);
+                        // 2. Get "Similar Artists" to create a real mix
+                        // We use the collaborative engine to find a "seed" track's similar tracks
+                        const seedTrack = history.find(t => t.artist === selectedArtist) || history[0];
+                        const similarTracks = await getCollaborativeRecommendations(seedTrack.id);
 
-                section = {
-                    title: `${mood} Mood`,
-                    subtitle: 'Match your vibe',
-                    tracks: tracks.slice(0, 15)
-                };
-            } else {
-                // trending_hits
-                const trending = ['Viral Hits', 'Top 50', 'New Releases', 'Hot Right Now'];
-                const query = trending[Math.floor(Math.random() * trending.length)];
-                let tracks = await api.search(query);
-                tracks = await processTracks(tracks);
+                        // 3. Mix them: 40% Main Artist, 60% Discovery/Similar
+                        const combined = [...mainTracks.slice(0, 5), ...similarTracks];
+                        const processed = await processTracks(combined);
 
-                section = {
-                    title: query,
-                    subtitle: 'Trending now',
-                    tracks: tracks.slice(0, 15)
+                        return {
+                            title: `Mix de ${selectedArtist}`,
+                            subtitle: `Com ${selectedArtist} e similares`,
+                            tracks: processed.slice(0, 15)
+                        };
+                    }
+                }
+            }
+
+            // STRATEGY 2: "Jump Back In" (Based on LAST played Song)
+            if (offset % 3 === 1) {
+                const history = ZunoAPI.getValidHistory();
+                if (history.length > 0) {
+                    const lastTrack = history[0];
+                    const recs = await getCollaborativeRecommendations(lastTrack.id);
+                    const processed = await processTracks(recs);
+
+                    return {
+                        title: `Porque você ouviu ${lastTrack.artist}`,
+                        subtitle: `${lastTrack.title} e similares`,
+                        tracks: processed.slice(0, 15)
+                    };
+                }
+            }
+
+            // STRATEGY 3: "Daily Discovery" (Deep Dive based on taste profile)
+            // Uses profile vector to find new stuff
+            if (offset % 3 === 2) {
+                const profile = await ZunoAPI.getUserProfile();
+                // Determine vibe from profile
+                let query = 'hits';
+                if (profile.energy > 0.7) query = 'club hits';
+                else if (profile.energy < 0.4) query = 'chill relaxing';
+                else if (profile.valence > 0.7) query = 'happy pop';
+                else query = 'trending music';
+
+                const results = await api.search(query);
+                const processed = await processTracks(results);
+
+                return {
+                    title: 'Descobertas da Semana',
+                    subtitle: 'Sugestões novas para seu perfil',
+                    tracks: processed.slice(0, 15)
                 };
             }
 
-            // NO CACHE - always fresh
-            return section;
+            // FALLBACK if no history (New User)
+            // Enhanced variety for new users
+            const queries = [
+                'Top 50 Global', 'Viral Hits', 'New Music Friday',
+                'Rock Classics', 'Jazz Vibes', 'Lo-Fi Beats',
+                'Electronic Essentials', 'Hip Hop Heavyweights',
+                'Indie Discoveries', 'Latin Hits', 'K-Pop Risers',
+                'Piano Ballads', 'Movie Soundtracks', 'Acoustic Covers'
+            ];
+
+            // Random selection to ensure variety every time
+            const q = queries[Math.floor(Math.random() * queries.length)];
+
+            const res = await api.search(q);
+
+            // Ensure we don't just show the same 5 artists if the API returns them
+            // Shuffle and filter duplicates by artist in the fallback
+            const seenArtists = new Set();
+            const diverseTracks = res.filter(t => {
+                if (seenArtists.has(t.artist)) return false;
+                seenArtists.add(t.artist);
+                return true;
+            });
+
+            return {
+                title: q,
+                subtitle: 'Explorar Gêneros',
+                tracks: diverseTracks.length > 5 ? diverseTracks.slice(0, 15) : res.slice(0, 15)
+            };
 
         } catch (error) {
             console.error('Feed generation error:', error);
             // Minimal fallback
+            const fallback = await api.search('mix');
             return {
-                title: 'Discover',
-                subtitle: 'Explore music',
-                tracks: []
+                title: 'Explorar',
+                subtitle: 'Música Variada',
+                tracks: fallback.slice(0, 15)
             };
         }
     },
@@ -201,29 +209,16 @@ export const ZunoAPI = {
     },
 
     getTrackInsight: async (track: Track, context: ContextType): Promise<string> => {
-        // Simple local explanation (no AI needed)
-        const explanations: Record<ContextType, string[]> = {
-            Workout: ['Perfect energy boost!', 'Great for your workout!', 'High energy vibes!'],
-            Focus: ['Helps you concentrate', 'Perfect for deep work', 'Minimal distractions'],
-            Party: ['Dance floor ready!', 'Party anthem!', 'Get the party started!'],
-            Chill: ['Relaxing vibes', 'Perfect to unwind', 'Chill mode activated'],
-            Morning: ['Great way to start the day', 'Morning energy', 'Rise and shine!'],
-            Rainy: ['Cozy rainy day vibes', 'Melancholic mood', 'Perfect for reflection']
-        };
-
-        const options = explanations[context] || ['Great track!'];
-        return options[Math.floor(Math.random() * options.length)];
+        return "Tocando agora";
     },
 
     /**
      * Records a play in history.
-     * Only counts if played for > 120 seconds (as requested).
      */
     recordPlay: (track: Track, secondsPlayed: number) => {
-        if (secondsPlayed < 120) return; // Ignore skips
+        if (secondsPlayed < 10) return; // Lower threshold to learn faster
 
         const history = JSON.parse(localStorage.getItem('zuno_history') || '[]');
-        // Add to front, limit to 50
         const newHistory = [track, ...history.filter((t: Track) => t.id !== track.id)].slice(0, 50);
         localStorage.setItem('zuno_history', JSON.stringify(newHistory));
     },
@@ -239,21 +234,15 @@ export const ZunoAPI = {
         return JSON.parse(localStorage.getItem('zuno_search_history') || '[]');
     },
 
-    /**
-     * Gets valid history for recommendations.
-     * Filters are already applied at write-time (recordPlay).
-     */
     getValidHistory: (): Track[] => {
         return JSON.parse(localStorage.getItem('zuno_history') || '[]');
     },
 
     getUserProfile: async () => {
         const history = JSON.parse(localStorage.getItem('zuno_history') || '[]');
-        // Safety check
         if (typeof calculateUserVector === 'function') {
             return calculateUserVector(history);
         }
-        console.warn('RecommendationEngine.calculateUserVector missing, utilizing default profile');
         return { energy: 0.5, valence: 0.5 };
     },
 
