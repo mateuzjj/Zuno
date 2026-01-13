@@ -247,7 +247,10 @@ export const ZunoAPI = {
     },
 
     // New Search Passthroughs
-    searchArtists: (query: string) => api.searchArtists(query),
+    searchArtists: async (query: string) => {
+      const result = await api.searchArtists(query);
+      return Array.isArray(result) ? result : result.items;
+    },
     getArtist: (id: string) => api.getArtist(id),
     getAlbum: (id: string) => api.getAlbum(id)
 };

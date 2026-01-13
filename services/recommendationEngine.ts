@@ -206,8 +206,10 @@ export const rankTracks = (tracks: Track[], userProfile: { energy: number, valen
         .map(({ _score, ...track }: any) => track); // Remove score
 };
 
-// 6. AI-Powered Recommendations
-// Previous Gemini implementation has been removed in favor of Hybrid Engine.
+// 6. AI-Powered Recommendations (Gemini -> Spotify Direct Search)
+// 6. AI-Powered Recommendations (REMOVED)
+// Gemini service was removed as it was not functioning correctly.
+// Use getTracksByContext or Hybrid engine instead.
 
 export const RecommendationEngine = {
     getTracksByContext,

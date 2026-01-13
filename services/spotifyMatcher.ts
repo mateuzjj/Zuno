@@ -136,11 +136,12 @@ export async function matchArtist(spotifyArtist: SpotifyArtist): Promise<Artist 
     try {
         console.log(`[SpotifyMatcher] Searching for artist: "${spotifyArtist.name}"`);
 
-        const results = await api.searchArtists(spotifyArtist.name);
+        const result = await api.searchArtists(spotifyArtist.name);
+        const results = Array.isArray(result) ? result : result.items;
 
         if (results.length === 0) {
-            console.log(`[SpotifyMatcher] No artist results found`);
-            return null;
+          console.log(`[SpotifyMatcher] No artist results found`);
+          return null;
         }
 
         // Find best match by name similarity
