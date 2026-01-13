@@ -24,7 +24,7 @@ export const PlayerBar: React.FC = () => {
 
   return (
     <div
-      className="fixed left-2 right-2 md:left-8 md:right-8 bg-zuno-card/98 border border-white/10 p-3 md:p-4 z-50 rounded-3xl backdrop-blur-2xl shadow-2xl shadow-black/50 transition-all duration-300 player-bar-bottom flex-nowrap"
+      className="fixed left-2 right-2 md:left-8 md:right-8 bg-zuno-card/98 border border-white/10 p-3 md:p-4 z-50 rounded-3xl backdrop-blur-2xl shadow-2xl shadow-black/50 transition-all duration-300 player-bar-bottom"
       style={{
         left: 'calc(0.5rem + env(safe-area-inset-left))',
         right: 'calc(0.5rem + env(safe-area-inset-right))'
@@ -55,7 +55,7 @@ export const PlayerBar: React.FC = () => {
               <p className="text-xs text-zuno-muted truncate hover:text-white cursor-pointer transition-colors">
                 {currentTrack.artist}
               </p>
-              {/* Lyrics Display - Hidden on mobile */}
+              {/* Lyrics Display - Hidden on mobile for compactness */}
               {currentLyrics && !currentLyrics.instrumental && (
                 <div className="hidden md:block mt-2 space-y-0.5 max-w-[280px]">
                   {(() => {
@@ -119,7 +119,7 @@ export const PlayerBar: React.FC = () => {
                 </div>
               )}
               {lyricsLoading && (
-                <div className="mt-2">
+                <div className="hidden md:block mt-2">
                   <p className="text-xs text-white/40 animate-pulse">Loading lyrics...</p>
                 </div>
               )}
@@ -132,7 +132,7 @@ export const PlayerBar: React.FC = () => {
               e.stopPropagation();
               toggleLike();
             }}
-            className={`transition-colors hover:scale-110 ${isLiked ? 'text-zuno-accent' : 'text-zuno-muted hover:text-white'}`}
+            className={`ml-auto transition-colors hover:scale-110 ${isLiked ? 'text-zuno-accent' : 'text-zuno-muted hover:text-white'}`}
           >
             <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
           </button>
@@ -143,12 +143,12 @@ export const PlayerBar: React.FC = () => {
           <div className="flex items-center gap-4 md:gap-6 mb-1">
             <button
               onClick={toggleShuffle}
-              className={`hidden md:block transition-colors hover:scale-110 ${shuffleEnabled ? 'text-zuno-accent' : 'text-zuno-muted hover:text-white'}`}
+              className={`transition-colors hover:scale-110 ${shuffleEnabled ? 'text-zuno-accent' : 'text-zuno-muted hover:text-white'}`}
               title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'}
             >
               <Shuffle size={18} />
             </button>
-            <button onClick={prevTrack} className="hidden md:block text-zuno-muted hover:text-white transition-colors hover:scale-110">
+            <button onClick={prevTrack} className="text-zuno-muted hover:text-white transition-colors hover:scale-110">
               <SkipBack size={20} />
             </button>
             <button
@@ -162,14 +162,14 @@ export const PlayerBar: React.FC = () => {
             </button>
             <button
               onClick={cycleRepeatMode}
-              className={`hidden md:block transition-colors hover:scale-110 ${repeatMode !== 'off' ? 'text-zuno-accent' : 'text-zuno-muted hover:text-white'}`}
+              className={`transition-colors hover:scale-110 ${repeatMode !== 'off' ? 'text-zuno-accent' : 'text-zuno-muted hover:text-white'}`}
               title={`Repeat: ${repeatMode}`}
             >
               {repeatMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
             </button>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 w-full">
+          <div className="flex items-center gap-2 w-full">
             <span className="text-xs text-zuno-muted w-10 text-right font-mono">{formatTime(currentTime)}</span>
             <div className="group relative w-full flex items-center h-4">
               <input
@@ -237,14 +237,6 @@ export const PlayerBar: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Mobile Progress Bar (Absolute Bottom) */}
-      <div className="md:hidden absolute bottom-0 left-6 right-6 h-[3px] bg-white/5 rounded-full overflow-hidden mb-1">
-        <div
-          className="h-full bg-zuno-accent rounded-full"
-          style={{ width: `${(currentTime / currentTrack.duration) * 100}%` }}
-        />
-      </div>
-    </div >
+    </div>
   );
 };
