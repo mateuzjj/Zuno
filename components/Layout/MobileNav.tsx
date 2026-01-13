@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Search, Library, Sliders, FileText, Menu as MenuIcon } from 'lucide-react';
+import { Home, Search, Library, Menu as MenuIcon } from 'lucide-react';
 import { View } from '../../types';
 import { MobileMenu } from './MobileMenu';
 
@@ -15,7 +15,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentView, setView }) =>
     { id: 'home' as View, icon: Home, label: 'Início' },
     { id: 'search' as View, icon: Search, label: 'Buscar' },
     { id: 'library' as View, icon: Library, label: 'Biblio' },
-    { id: 'generator' as View, icon: Sliders, label: 'Vibe' },
   ];
 
   return (

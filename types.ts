@@ -80,7 +80,7 @@ export interface PlayerState {
   repeatMode: RepeatMode;
 }
 
-export type View = 'home' | 'search' | 'library' | 'editor' | 'artist' | 'album' | 'playlist' | 'likedSongs' | 'generator';
+export type View = 'home' | 'search' | 'library' | 'artist' | 'album' | 'playlist' | 'likedSongs';
 
 // Lyrics Types
 export interface LyricsLine {

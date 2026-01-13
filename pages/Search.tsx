@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search as SearchIcon, Music2, X } from 'lucide-react';
-import { View } from '../types';
+import { Search as SearchIcon, Music2, X, User, Disc } from 'lucide-react';
+import { View, Track, Album, Artist } from '../types';
 import { api } from '../services/api';
-import { Track } from '../types';
 import { usePlayer } from '../store/PlayerContext';
 
 interface SearchProps {
@@ -11,23 +10,37 @@ interface SearchProps {
 
 export const Search: React.FC<SearchProps> = ({ onNavigate }) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Track[]>([]);
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(false);
   const { playTrack } = usePlayer();
 
   const handleSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) {
-      setResults([]);
+      setTracks([]);
+      setArtists([]);
+      setAlbums([]);
       return;
     }
 
     setLoading(true);
     try {
-      const tracks = await api.search(searchQuery);
-      setResults(tracks.slice(0, 20));
+      // Search all types in parallel
+      const [tracksResult, artistsResult, albumsResult] = await Promise.all([
+        api.search(searchQuery).catch(() => []),
+        api.searchArtists(searchQuery).catch(() => []),
+        api.searchAlbums(searchQuery).catch(() => [])
+      ]);
+
+      setTracks(tracksResult.slice(0, 20));
+      setArtists(artistsResult.slice(0, 10));
+      setAlbums(albumsResult.slice(0, 10));
     } catch (error) {
       console.error('Search failed:', error);
-      setResults([]);
+      setTracks([]);
+      setArtists([]);
+      setAlbums([]);
     } finally {
       setLoading(false);
     }
@@ -68,31 +81,102 @@ export const Search: React.FC<SearchProps> = ({ onNavigate }) => {
         <div className="text-center py-12">
           <div className="w-8 h-8 border-4 border-zuno-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
-      ) : results.length > 0 ? (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-white">Resultados</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {results.map((track) => (
-              <div
-                key={track.id}
-                className="bg-zuno-card rounded-xl p-4 hover:bg-zuno-light transition-colors cursor-pointer group"
-                onClick={() => playTrack(track)}
-              >
-                <div className="relative mb-3 aspect-square rounded-lg overflow-hidden">
-                  <img
-                    src={track.coverUrl}
-                    alt={track.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Music2 size={32} className="text-white" fill="white" />
+      ) : query && (tracks.length > 0 || artists.length > 0 || albums.length > 0) ? (
+        <div className="space-y-8">
+          {/* Artists Section */}
+          {artists.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <User size={20} className="text-zuno-accent" />
+                Artistas
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {artists.map((artist) => (
+                  <div
+                    key={artist.id}
+                    className="bg-zuno-card rounded-xl p-4 hover:bg-zuno-light transition-colors cursor-pointer group"
+                    onClick={() => onNavigate('artist', artist.id)}
+                  >
+                    <div className="relative mb-3 aspect-square rounded-full overflow-hidden">
+                      <img
+                        src={artist.picture}
+                        alt={artist.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <User size={32} className="text-white" fill="white" />
+                      </div>
+                    </div>
+                    <h4 className="font-bold text-white text-sm truncate text-center">{artist.name}</h4>
                   </div>
-                </div>
-                <h4 className="font-bold text-white text-sm truncate">{track.title}</h4>
-                <p className="text-xs text-zuno-muted truncate">{track.artist}</p>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* Albums Section */}
+          {albums.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Disc size={20} className="text-zuno-accent" />
+                Álbuns
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {albums.map((album) => (
+                  <div
+                    key={album.id}
+                    className="bg-zuno-card rounded-xl p-4 hover:bg-zuno-light transition-colors cursor-pointer group"
+                    onClick={() => onNavigate('album', album.id)}
+                  >
+                    <div className="relative mb-3 aspect-square rounded-lg overflow-hidden">
+                      <img
+                        src={album.coverUrl}
+                        alt={album.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Disc size={32} className="text-white" fill="white" />
+                      </div>
+                    </div>
+                    <h4 className="font-bold text-white text-sm truncate">{album.title}</h4>
+                    <p className="text-xs text-zuno-muted truncate">{album.artist}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tracks Section */}
+          {tracks.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Music2 size={20} className="text-zuno-accent" />
+                Músicas
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {tracks.map((track) => (
+                  <div
+                    key={track.id}
+                    className="bg-zuno-card rounded-xl p-4 hover:bg-zuno-light transition-colors cursor-pointer group"
+                    onClick={() => playTrack(track)}
+                  >
+                    <div className="relative mb-3 aspect-square rounded-lg overflow-hidden">
+                      <img
+                        src={track.coverUrl}
+                        alt={track.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Music2 size={32} className="text-white" fill="white" />
+                      </div>
+                    </div>
+                    <h4 className="font-bold text-white text-sm truncate">{track.title}</h4>
+                    <p className="text-xs text-zuno-muted truncate">{track.artist}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : query ? (
         <div className="text-center py-12">
