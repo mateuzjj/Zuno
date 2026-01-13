@@ -23,8 +23,8 @@ export const PlayerBar: React.FC = () => {
   const isPlaying = status === PlayerStatus.PLAYING;
 
   return (
-    <div 
-      className="fixed left-2 right-2 md:left-8 md:right-8 bg-zuno-card/95 border border-white/5 p-3 md:p-4 z-50 rounded-2xl md:rounded-3xl backdrop-blur-xl shadow-2xl shadow-black/50 transition-all duration-300 player-bar-bottom"
+    <div
+      className="fixed left-2 right-2 md:left-8 md:right-8 bg-zuno-card/85 border border-white/10 p-3 md:p-4 z-50 rounded-3xl backdrop-blur-2xl shadow-2xl shadow-black/50 transition-all duration-300 player-bar-bottom"
       style={{
         left: 'calc(0.5rem + env(safe-area-inset-left))',
         right: 'calc(0.5rem + env(safe-area-inset-right))'
@@ -68,14 +68,14 @@ export const PlayerBar: React.FC = () => {
                           break;
                         }
                       }
-                      
+
                       if (currentLineIndex >= 0) {
                         const currentLine = currentLyrics.syncedLyrics[currentLineIndex];
                         const prevLine = currentLineIndex > 0 ? currentLyrics.syncedLyrics[currentLineIndex - 1] : null;
-                        const nextLine = currentLineIndex < currentLyrics.syncedLyrics.length - 1 
-                          ? currentLyrics.syncedLyrics[currentLineIndex + 1] 
+                        const nextLine = currentLineIndex < currentLyrics.syncedLyrics.length - 1
+                          ? currentLyrics.syncedLyrics[currentLineIndex + 1]
                           : null;
-                        
+
                         return (
                           <>
                             {prevLine && (
@@ -95,18 +95,17 @@ export const PlayerBar: React.FC = () => {
                         );
                       }
                     }
-                    
+
                     // Fallback to plain lyrics (show first 3 lines)
                     if (currentLyrics.plainLyrics) {
                       const lines = currentLyrics.plainLyrics.split('\n').filter(l => l.trim()).slice(0, 3);
                       return (
                         <>
                           {lines.map((line, idx) => (
-                            <p 
-                              key={idx} 
-                              className={`text-xs truncate transition-all duration-300 ${
-                                idx === 1 ? 'text-white font-medium' : 'text-white/40'
-                              }`}
+                            <p
+                              key={idx}
+                              className={`text-xs truncate transition-all duration-300 ${idx === 1 ? 'text-white font-medium' : 'text-white/40'
+                                }`}
                             >
                               {line.trim()}
                             </p>
@@ -114,7 +113,7 @@ export const PlayerBar: React.FC = () => {
                         </>
                       );
                     }
-                    
+
                     return null;
                   })()}
                 </div>
