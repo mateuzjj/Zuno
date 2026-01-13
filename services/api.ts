@@ -158,25 +158,162 @@ function mapApiTrackToTrack(item: any, fallbackArtistName?: string): Track {
   };
 }
 
+// Helper function to get featured albums (defined before api object)
+async function getFeaturedAlbumsHelper(): Promise<Album[]> {
+  try {
+    const queries = [
+      'New Releases', 'Top Albums', 'Trending', 'Hits',
+      'Best of', 'Classics', 'Essential'
+    ];
+    
+    const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+    
+    // Add timeout to prevent infinite loading
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Album search timeout')), 5000)
+    );
+    
+    const response = await Promise.race([
+      fetchWithRetry(`/search/?al=${encodeURIComponent(randomQuery)}&limit=12`),
+      timeoutPromise
+    ]);
+    
+    const data = await response.json();
+    const normalized = normalizeSearchResponse(data, 'albums');
+
+    const seen = new Set<string>();
+    const albums = normalized.items
+      .map((item: any) => {
+        // Try multiple ways to get artist name
+        let artistName = 'Unknown';
+        if (item.artist?.name) {
+          artistName = item.artist.name;
+        } else if (item.artists && Array.isArray(item.artists) && item.artists.length > 0) {
+          // Handle array of artists (take first one)
+          artistName = item.artists[0]?.name || item.artists[0] || 'Unknown';
+        } else if (typeof item.artist === 'string') {
+          artistName = item.artist;
+        } else if (item.artistName) {
+          artistName = item.artistName;
+        }
+
+        return {
+          id: item.id?.toString(),
+          title: item.title,
+          artist: artistName,
+          coverUrl: item.cover ? getCoverUrl(item.cover) : '',
+          year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined,
+          releaseDate: item.releaseDate
+        };
+      })
+      .filter((a: Album) => {
+        if (seen.has(a.id)) return false;
+        seen.add(a.id);
+        return true;
+      })
+      .slice(0, 12);
+    
+    return albums.length > 0 ? albums : MOCK_ALBUMS;
+  } catch (error) {
+    console.warn("Failed to get featured albums, using mocks", error);
+    return MOCK_ALBUMS;
+  }
+}
+
+// Helper function to get featured playlists (defined before api object)
+async function getFeaturedPlaylistsHelper(): Promise<Playlist[]> {
+  try {
+    const queries = [
+      'Top 50', 'Viral', 'Trending', 'New Music', 'Hits',
+      'Chill', 'Workout', 'Focus', 'Party', 'Relax'
+    ];
+    
+    const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+    
+    // Add timeout to prevent infinite loading
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Playlist search timeout')), 5000)
+    );
+    
+    const response = await Promise.race([
+      fetchWithRetry(`/search/?pl=${encodeURIComponent(randomQuery)}&limit=12`),
+      timeoutPromise
+    ]);
+    
+    const data = await response.json();
+    const normalized = normalizeSearchResponse(data, 'playlists');
+
+    const seen = new Set<string>();
+    const playlists = normalized.items
+      .map((item: any) => ({
+        id: item.id?.toString(),
+        name: item.title || item.name || 'Unknown Playlist',
+        description: item.description || undefined,
+        coverUrl: item.cover ? getCoverUrl(item.cover) : undefined,
+        tracks: [],
+        createdAt: item.createdAt || Date.now(),
+        updatedAt: item.updatedAt || Date.now()
+      }))
+      .filter((p: Playlist) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      })
+      .slice(0, 12);
+    
+    return playlists.length > 0 ? playlists : MOCK_PLAYLISTS;
+  } catch (error) {
+    console.warn("Failed to get featured playlists, using mocks", error);
+    return MOCK_PLAYLISTS;
+  }
+}
+
 export const api = {
-  // Mocked Home Data (since we don't have user history on the backend yet)
+  // Enhanced Home Data with real API calls
   getFeatured: async (): Promise<{ albums: Album[], playlists: Playlist[], recent: Track[] }> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          albums: MOCK_ALBUMS,
-          playlists: MOCK_PLAYLISTS,
-          recent: MOCK_TRACKS.slice(0, 3)
-        });
-      }, 300);
-    });
+    try {
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise<{ albums: Album[], playlists: Playlist[], recent: Track[] }>((_, reject) => 
+        setTimeout(() => reject(new Error('getFeatured timeout')), 10000)
+      );
+
+      const featuredPromise = (async () => {
+        // Try to get real data from API using helper functions
+        const [albums, playlists] = await Promise.all([
+          getFeaturedAlbumsHelper().catch(() => MOCK_ALBUMS),
+          getFeaturedPlaylistsHelper().catch(() => MOCK_PLAYLISTS)
+        ]);
+
+        // Get recent tracks from personalized feed with timeout
+        const recent = await Promise.race([
+          import('./zunoApi')
+            .then(m => m.ZunoAPI.getNextFeedSection(0))
+            .then(section => section.tracks.slice(0, 3))
+            .catch(() => MOCK_TRACKS.slice(0, 3)),
+          new Promise<Track[]>((_, reject) => 
+            setTimeout(() => reject(new Error('Recent tracks timeout')), 5000)
+          )
+        ]).catch(() => MOCK_TRACKS.slice(0, 3));
+
+        return { albums, playlists, recent };
+      })();
+
+      return await Promise.race([featuredPromise, timeoutPromise]);
+    } catch (error) {
+      console.warn("Failed to get featured data, using mocks", error);
+      return {
+        albums: MOCK_ALBUMS,
+        playlists: MOCK_PLAYLISTS,
+        recent: MOCK_TRACKS.slice(0, 3)
+      };
+    }
   },
 
   // Real Search Implementation with Relevance Boost
-  search: async (query: string): Promise<Track[]> => {
+  search: async (query: string, limit: number = 20, offset: number = 0): Promise<Track[]> => {
     try {
       const normalizedQuery = query.trim().toLowerCase();
-      const response = await fetchWithRetry(`/search/?s=${encodeURIComponent(query)}&limit=25`);
+      const response = await fetchWithRetry(`/search/?s=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
       const data = await response.json();
 
       let items: any[] = [];
@@ -226,18 +363,30 @@ export const api = {
   },
 
   // Artist Search
-  searchArtists: async (query: string): Promise<any[]> => {
+  searchArtists: async (query: string, limit: number = 6, offset: number = 0): Promise<{ items: any[], total: number }> => {
     try {
-      const response = await fetchWithRetry(`/search/?a=${encodeURIComponent(query)}&limit=10`);
+      // Add timeout to prevent long waits
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Artist search timeout')), 6000)
+      );
+
+      const searchPromise = fetchWithRetry(`/search/?a=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
+      const response = await Promise.race([searchPromise, timeoutPromise]);
+      
       const data = await response.json();
       const normalized = normalizeSearchResponse(data, 'artists');
 
-      return normalized.items.map((item: any) => ({
+      const items = normalized.items.map((item: any) => ({
         id: item.id?.toString(),
         name: item.name,
         picture: getArtistPictureUrl(item.picture || item.cover, '320'),
         type: item.type
       }));
+
+      return {
+        items,
+        total: normalized.totalNumberOfItems
+      };
     } catch (error) {
       console.warn("Artist search failed", error);
       return [];
@@ -245,19 +394,58 @@ export const api = {
   },
 
   // Album Search
-  searchAlbums: async (query: string): Promise<any[]> => {
+  searchAlbums: async (query: string, limit: number = 6, offset: number = 0): Promise<{ items: any[], total: number }> => {
     try {
-      const response = await fetchWithRetry(`/search/?al=${encodeURIComponent(query)}&limit=10`);
+      // Add timeout to prevent long waits
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Album search timeout')), 6000)
+      );
+
+      const searchPromise = fetchWithRetry(`/search/?al=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
+      const response = await Promise.race([searchPromise, timeoutPromise]);
+      
       const data = await response.json();
       const normalized = normalizeSearchResponse(data, 'albums');
 
-      return normalized.items.map((item: any) => ({
-        id: item.id?.toString(),
-        title: item.title,
-        artist: item.artist?.name || 'Unknown',
-        coverUrl: item.cover ? getCoverUrl(item.cover) : '',
-        year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined
-      }));
+      const items = normalized.items.map((item: any) => {
+        // Debug: log first item structure to understand API response
+        if (normalized.items.indexOf(item) === 0) {
+          console.log('[Album Search] Sample item structure:', {
+            id: item.id,
+            title: item.title,
+            artist: item.artist,
+            artists: item.artists,
+            artistName: item.artistName,
+            allKeys: Object.keys(item)
+          });
+        }
+
+        // Try multiple ways to get artist name
+        let artistName = 'Unknown';
+        if (item.artist?.name) {
+          artistName = item.artist.name;
+        } else if (item.artists && Array.isArray(item.artists) && item.artists.length > 0) {
+          // Handle array of artists (take first one)
+          artistName = item.artists[0]?.name || item.artists[0] || 'Unknown';
+        } else if (typeof item.artist === 'string') {
+          artistName = item.artist;
+        } else if (item.artistName) {
+          artistName = item.artistName;
+        }
+
+        return {
+          id: item.id?.toString(),
+          title: item.title,
+          artist: artistName,
+          coverUrl: item.cover ? getCoverUrl(item.cover) : '',
+          year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined
+        };
+      });
+
+      return {
+        items,
+        total: normalized.totalNumberOfItems
+      };
     } catch (error) {
       console.warn("Album search failed", error);
       return [];
@@ -390,10 +578,23 @@ export const api = {
       const jsonData = await response.json();
       const data = jsonData.data || jsonData;
 
+      // Try multiple ways to get artist name
+      let artistName: string | undefined;
+      if (data.artist?.name) {
+        artistName = data.artist.name;
+      } else if (data.artists && Array.isArray(data.artists) && data.artists.length > 0) {
+        // Handle array of artists (take first one)
+        artistName = data.artists[0]?.name || data.artists[0];
+      } else if (typeof data.artist === 'string') {
+        artistName = data.artist;
+      } else if (data.artistName) {
+        artistName = data.artistName;
+      }
+
       let album: any = {
         id: data.id?.toString(),
         title: data.title,
-        artist: data.artist?.name,
+        artist: artistName,
         coverUrl: getCoverUrl(data.cover),
         releaseDate: data.releaseDate
       };
@@ -424,5 +625,78 @@ export const api = {
       console.error("Get Album failed", e);
       throw e;
     }
+  },
+
+  // Search for Playlists (Tidal API compatible)
+  searchPlaylists: async (query: string, limit: number = 20, offset: number = 0): Promise<{ items: Playlist[], total: number }> => {
+    try {
+      const response = await fetchWithRetry(`/search/?pl=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
+      const data = await response.json();
+      const normalized = normalizeSearchResponse(data, 'playlists');
+
+      const items = normalized.items.map((item: any) => ({
+        id: item.id?.toString(),
+        name: item.title || item.name || 'Unknown Playlist',
+        description: item.description || undefined,
+        coverUrl: item.cover ? getCoverUrl(item.cover) : undefined,
+        tracks: [], // Tracks are fetched separately via getPlaylist
+        createdAt: item.createdAt || Date.now(),
+        updatedAt: item.updatedAt || Date.now()
+      }));
+
+      return {
+        items,
+        total: normalized.totalNumberOfItems
+      };
+    } catch (error) {
+      console.warn("Playlist search failed", error);
+      return [];
+    }
+  },
+
+  // Get Playlist Details (Tracks)
+  getPlaylist: async (playlistId: string): Promise<{ playlist: Playlist, tracks: Track[] }> => {
+    try {
+      const response = await fetchWithRetry(`/playlist/?id=${playlistId}`);
+      const jsonData = await response.json();
+      const data = jsonData.data || jsonData;
+
+      const playlist: Playlist = {
+        id: data.id?.toString(),
+        name: data.title || data.name || 'Unknown Playlist',
+        description: data.description || undefined,
+        coverUrl: data.cover ? getCoverUrl(data.cover) : undefined,
+        tracks: [],
+        createdAt: data.createdAt || Date.now(),
+        updatedAt: data.updatedAt || Date.now()
+      };
+
+      let rawTracks: any[] = [];
+      if (data.tracks?.items) {
+        rawTracks = data.tracks.items;
+      } else if (data.items) {
+        rawTracks = data.items;
+      }
+
+      const tracks = rawTracks.map((t: any) => {
+        const item = t.item || t;
+        return mapApiTrackToTrack(item);
+      });
+
+      return { playlist, tracks };
+    } catch (e) {
+      console.error("Get Playlist failed", e);
+      throw e;
+    }
+  },
+
+  // Get Featured/Recommended Playlists (using search with popular queries)
+  getFeaturedPlaylists: async (): Promise<Playlist[]> => {
+    return getFeaturedPlaylistsHelper();
+  },
+
+  // Get Featured Albums (using search with popular queries)
+  getFeaturedAlbums: async (): Promise<Album[]> => {
+    return getFeaturedAlbumsHelper();
   }
 };

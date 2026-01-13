@@ -1,4 +1,4 @@
-import { Home, Search, Library, PlusSquare, Heart, Wand2, Sliders } from 'lucide-react';
+import { Home, Search, Library, PlusSquare, Heart } from 'lucide-react';
 import { View } from '../../types';
 import { Logo } from '../UI/Logo';
 import { UserProfile } from '../User/UserProfile';
@@ -13,8 +13,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
     { id: 'home', label: 'Início', icon: Home },
     { id: 'search', label: 'Buscar', icon: Search },
     { id: 'library', label: 'Sua Biblioteca', icon: Library },
-    { id: 'generator', label: 'Vibe Generator', icon: Sliders },
-    { id: 'editor', label: 'Magic Studio', icon: Wand2 },
   ];
 
   return (

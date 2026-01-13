@@ -24,7 +24,7 @@ export const PlayerBar: React.FC = () => {
 
   return (
     <div 
-      className="fixed left-2 right-2 md:left-8 md:right-8 bg-zuno-card/95 border border-white/5 p-3 md:p-4 z-50 rounded-2xl md:rounded-3xl backdrop-blur-xl shadow-2xl shadow-black/50 transition-all duration-300 player-bar-responsive"
+      className="fixed left-2 right-2 md:left-8 md:right-8 bg-zuno-card/95 border border-white/5 p-3 md:p-4 z-50 rounded-2xl md:rounded-3xl backdrop-blur-xl shadow-2xl shadow-black/50 transition-all duration-300 player-bar-bottom"
       style={{
         left: 'calc(0.5rem + env(safe-area-inset-left))',
         right: 'calc(0.5rem + env(safe-area-inset-right))'

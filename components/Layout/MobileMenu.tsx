@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, User, Wand2, Heart, PlusSquare, Sliders, LogOut } from 'lucide-react';
+import { X, User, Heart, PlusSquare, LogOut } from 'lucide-react';
 import { View } from '../../types';
 import { Logo } from '../UI/Logo';
 import { SpotifyAuth } from '../../services/spotifyAuth';
@@ -56,21 +56,6 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose, setView
                         <h3 className="font-bold text-white">Meu Perfil</h3>
                         <p className="text-xs text-zuno-accent cursor-pointer hover:underline" onClick={handleLogout}>Sair da conta</p>
                     </div>
-                </div>
-
-                {/* Navigation Links */}
-                <div className="flex flex-col gap-2">
-                    <p className="text-xs font-bold text-zuno-muted uppercase tracking-wider mb-2 px-2">Menu Principal</p>
-
-                    <button onClick={() => handleNavigation('generator')} className="flex items-center gap-4 text-white p-3 rounded-xl hover:bg-white/5 transition-colors">
-                        <Sliders size={20} className="text-zuno-accent" />
-                        <span className="font-medium">Vibe Generator</span>
-                    </button>
-
-                    <button onClick={() => handleNavigation('editor')} className="flex items-center gap-4 text-white p-3 rounded-xl hover:bg-white/5 transition-colors">
-                        <Wand2 size={20} className="text-purple-400" />
-                        <span className="font-medium">Magic Studio</span>
-                    </button>
                 </div>
 
                 {/* Library Actions */}
