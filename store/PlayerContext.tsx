@@ -51,6 +51,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const volumeRef = useRef<number>(volume);
   const isMutedRef = useRef<boolean>(isMuted);
   const playTrackInternalRef = useRef<((track: Track) => Promise<void>) | null>(null);
+  const nextStreamUrlRef = useRef<{ id: string; url: string } | null>(null);
 
   // Helper function to shuffle an array
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -74,19 +75,28 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setDuration(track.duration || 0);
 
     try {
-      // 1. Check if track is downloaded locally first
-      const { DownloadService } = await import('../services/download');
-      const downloadedUrl = await DownloadService.getDownloadedTrackUrl(track.id);
-      
       let streamUrl: string;
-      if (downloadedUrl) {
-        // Use downloaded track from IndexedDB
-        streamUrl = downloadedUrl;
-        console.log('[Player] Using downloaded track from IndexedDB');
+
+      // 0. Check Preloaded URL first (Fastest for background playback)
+      if (nextStreamUrlRef.current && nextStreamUrlRef.current.id === track.id) {
+        streamUrl = nextStreamUrlRef.current.url;
+        console.log('[Player] Using preloaded stream URL');
+        // Clear cache
+        nextStreamUrlRef.current = null;
       } else {
-        // Get the stream URL from API (async operation)
-        streamUrl = await api.getStreamUrl(track.id);
-        if (!streamUrl) throw new Error("Stream URL not found");
+        // 1. Check if track is downloaded locally first
+        const { DownloadService } = await import('../services/download');
+        const downloadedUrl = await DownloadService.getDownloadedTrackUrl(track.id);
+
+        if (downloadedUrl) {
+          // Use downloaded track from IndexedDB
+          streamUrl = downloadedUrl;
+          console.log('[Player] Using downloaded track from IndexedDB');
+        } else {
+          // Get the stream URL from API (async operation)
+          streamUrl = await api.getStreamUrl(track.id);
+          if (!streamUrl) throw new Error("Stream URL not found");
+        }
       }
 
       // 2. Set Audio Source - use refs to get current values
@@ -268,7 +278,163 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     loadLyrics();
   }, [currentTrack]);
 
-  // Liked Status Logic
+  // Preload Next Track URL (Fix for iOS Background Autoplay)
+  useEffect(() => {
+    if (!currentTrack || queue.length <= 1) return;
+
+    const preloadNext = async () => {
+      try {
+        // Determine next track
+        let nextIdx = currentIndex + 1;
+        if (nextIdx >= queue.length) {
+          if (repeatMode === 'off') return;
+          nextIdx = 0;
+        }
+
+        const nextTrk = queue[nextIdx];
+        if (!nextTrk || (nextStreamUrlRef.current && nextStreamUrlRef.current.id === nextTrk.id)) return;
+
+        console.log('[Player] Preloading next track:', nextTrk.title);
+        const { DownloadService } = await import('../services/download');
+        const downloadedUrl = await DownloadService.getDownloadedTrackUrl(nextTrk.id);
+
+        if (downloadedUrl) {
+          nextStreamUrlRef.current = { id: nextTrk.id, url: downloadedUrl };
+        } else {
+          const url = await api.getStreamUrl(nextTrk.id);
+          if (url) {
+            nextStreamUrlRef.current = { id: nextTrk.id, url };
+          }
+        }
+      } catch (e) {
+        console.warn('[Player] Preload failed', e);
+      }
+    };
+
+    preloadNext();
+  }, [currentTrack, queue, currentIndex, repeatMode]);
+
+  // Media Session API (Lock Screen Controls & Metadata)
+  useEffect(() => {
+    if (!currentTrack || !('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+
+    try {
+      // Update Metadata
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album || 'Zuno Music',
+        artwork: [
+          { src: currentTrack.coverUrl, sizes: '96x96', type: 'image/jpeg' },
+          { src: currentTrack.coverUrl, sizes: '128x128', type: 'image/jpeg' },
+          { src: currentTrack.coverUrl, sizes: '192x192', type: 'image/jpeg' },
+          { src: currentTrack.coverUrl, sizes: '256x256', type: 'image/jpeg' },
+          { src: currentTrack.coverUrl, sizes: '384x384', type: 'image/jpeg' },
+          { src: currentTrack.coverUrl, sizes: '512x512', type: 'image/jpeg' },
+        ]
+      });
+
+      // Update Playback State
+      navigator.mediaSession.playbackState = status === PlayerStatus.PLAYING ? 'playing' : 'paused';
+    } catch (error) {
+      console.error("Error updating media session metadata:", error);
+    }
+
+  }, [currentTrack, status]);
+
+  // Setup Media Session Action Handlers
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const actionHandlers = [
+      ['play', () => {
+        if (statusRef.current !== PlayerStatus.PLAYING) {
+          playTrackInternalRef.current && audioRef.current &&
+            audioRef.current.play().then(() => setStatus(PlayerStatus.PLAYING)).catch(console.error);
+        }
+      }],
+      ['pause', () => {
+        if (statusRef.current === PlayerStatus.PLAYING) {
+          audioRef.current?.pause();
+          setStatus(PlayerStatus.PAUSED);
+        }
+      }],
+      ['previoustrack', () => {
+        // Use the logic from prevTrack but accessible here. 
+        // We can expose prevTrack via a ref or just duplicate the simple logic if we have access to queueRef etc.
+        // It's better to expose the latest prevTrack function via a ref or just reuse the logic carefully.
+        // Since playTrackInternalRef is available, we can replicate the logic or better yet:
+        // Let's use a ref for the high-level control functions if they depend on state that might be stale in a closure
+        // But `nextTrack` and `prevTrack` defined in the component depend on `queue`, `currentIndex`, etc.
+        // To avoid stale closures in these handlers without re-binding them constantly, 
+        // we can wrap the calls to `nextTrack` and `prevTrack` in a ref-based dispatcher or just use the refs we already have.
+
+        // Re-implementing simplified logic using refs to ensure freshness:
+        const queue = queueRef.current;
+        const index = currentIndexRef.current;
+        const repeat = repeatModeRef.current;
+        const playFn = playTrackInternalRef.current;
+        const audio = audioRef.current;
+
+        if (!queue.length || !playFn) return;
+
+        // Restart if > 3s
+        if (audio && audio.currentTime > 3) {
+          audio.currentTime = 0;
+          return;
+        }
+
+        let newIdx = index - 1;
+        if (newIdx < 0) {
+          if (repeat === 'off') {
+            if (audio) audio.currentTime = 0;
+            return;
+          }
+          newIdx = queue.length - 1;
+        }
+
+        const track = queue[newIdx];
+        if (track) {
+          setCurrentIndex(newIdx); // This will trigger re-render but that's fine
+          playFn(track);
+        }
+      }],
+      ['nexttrack', () => {
+        const queue = queueRef.current;
+        const index = currentIndexRef.current;
+        const repeat = repeatModeRef.current;
+        const playFn = playTrackInternalRef.current;
+
+        if (!queue.length || !playFn) return;
+
+        let newIdx = index + 1;
+        if (newIdx >= queue.length) {
+          if (repeat === 'off') return;
+          newIdx = 0;
+        }
+
+        const track = queue[newIdx];
+        if (track) {
+          setCurrentIndex(newIdx);
+          playFn(track);
+        }
+      }],
+      ['seekto', (details: MediaSessionActionDetails) => {
+        if (details.seekTime !== undefined && audioRef.current) {
+          audioRef.current.currentTime = details.seekTime;
+          setCurrentTime(details.seekTime);
+        }
+      }]
+    ];
+
+    for (const [action, handler] of actionHandlers) {
+      try {
+        navigator.mediaSession.setActionHandler(action as MediaSessionAction, handler as MediaSessionActionHandler);
+      } catch (error) {
+        console.warn(`The media session action "${action}" is not supported yet.`);
+      }
+    }
+  }, []); // Run once on mount, handlers use refs for fresh state
   const [isLiked, setIsLiked] = useState(false);
 
   useEffect(() => {
@@ -343,14 +509,14 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       audioRef.current.volume = vol;
       setVolumeState(vol);
       volumeRef.current = vol;
-      
+
       // Se o volume foi ajustado para > 0 e estava mudo, desmutar
       if (vol > 0 && isMuted) {
         setIsMuted(false);
         audioRef.current.muted = false;
         isMutedRef.current = false;
       }
-      
+
       // Atualizar o volume antes do mute se não estiver mudo
       if (!isMuted) {
         setVolumeBeforeMute(vol);
@@ -361,7 +527,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const toggleMute = () => {
     if (audioRef.current) {
       const newMuted = !isMuted;
-      
+
       if (newMuted) {
         // Mutando: salvar volume atual e definir para 0
         setVolumeBeforeMute(volume);
@@ -375,7 +541,7 @@ export const PlayerProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         volumeRef.current = volumeToRestore;
         setVolumeState(volumeToRestore);
       }
-      
+
       setIsMuted(newMuted);
       isMutedRef.current = newMuted;
       audioRef.current.muted = newMuted;
