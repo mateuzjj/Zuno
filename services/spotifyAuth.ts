@@ -2,7 +2,8 @@
 
 // TEMPORARY: Hardcoded fallback while Netlify env var is being configured
 // TODO: Remove this once VITE_SPOTIFY_CLIENT_ID is properly set in Netlify
-const FALLBACK_CLIENT_ID = '4abe3f7f4bde4b66807e5a1a24740e7';
+const FALLBACK_CLIENT_ID = '4abe3f7f4bde4b66807e5a1a24740e78';
+
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || FALLBACK_CLIENT_ID;
 
