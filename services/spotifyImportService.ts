@@ -2,7 +2,8 @@ import { SpotifyClient } from './spotifyClient';
 import { SpotifyMatcher } from './spotifyMatcher';
 import { LikedSongsService } from './likedSongsService';
 import { FollowService } from './followService';
-import { Track, Artist } from '../types';
+import { PlaylistService } from './playlistService';
+import { Track, Artist, Playlist } from '../types';
 
 export interface ImportProgress {
     phase: 'fetching' | 'matching' | 'saving';
@@ -22,6 +23,19 @@ export interface ImportResult {
 export interface ImportAllResult {
     likedSongs: ImportResult;
     followedArtists: ImportResult;
+    playlists: ImportPlaylistsResult;
+}
+
+export interface ImportPlaylistsResult {
+    total: number;
+    imported: number;
+    failed: string[];
+    playlists: Array<{
+        name: string;
+        imported: number;
+        total: number;
+        failed: string[];
+    }>;
 }
 
 /**
@@ -197,6 +211,185 @@ export async function importFollowedArtists(
 }
 
 /**
+ * Import playlists from Spotify
+ */
+export async function importPlaylists(
+    playlistIds?: string[], // If undefined, import all playlists
+    onProgress?: (progress: ImportProgress) => void
+): Promise<ImportPlaylistsResult> {
+    const result: ImportPlaylistsResult = {
+        total: 0,
+        imported: 0,
+        failed: [],
+        playlists: [],
+    };
+
+    try {
+        // Phase 1: Fetch playlists from Spotify
+        onProgress?.({
+            phase: 'fetching',
+            total: 0,
+            processed: 0,
+            matched: 0,
+            failed: 0,
+            currentItem: 'Buscando playlists do Spotify...',
+        });
+
+        let spotifyPlaylists;
+        if (playlistIds && playlistIds.length > 0) {
+            // Import specific playlists
+            const allPlaylists = await SpotifyClient.getUserPlaylists();
+            spotifyPlaylists = allPlaylists.filter(p => playlistIds.includes(p.id));
+        } else {
+            // Import all playlists
+            spotifyPlaylists = await SpotifyClient.getUserPlaylists((current, total) => {
+                onProgress?.({
+                    phase: 'fetching',
+                    total,
+                    processed: current,
+                    matched: 0,
+                    failed: 0,
+                    currentItem: `Carregando ${current}/${total} playlists...`,
+                });
+            });
+        }
+
+        result.total = spotifyPlaylists.length;
+        console.log(`[SpotifyImport] Fetched ${result.total} playlists from Spotify`);
+
+        // Phase 2: Import each playlist
+        for (let i = 0; i < spotifyPlaylists.length; i++) {
+            const spotifyPlaylist = spotifyPlaylists[i];
+            const playlistResult = {
+                name: spotifyPlaylist.name,
+                imported: 0,
+                total: 0,
+                failed: [] as string[],
+            };
+
+            onProgress?.({
+                phase: 'matching',
+                total: result.total,
+                processed: i,
+                matched: result.imported,
+                failed: result.failed.length,
+                currentItem: `Importando: ${spotifyPlaylist.name}`,
+            });
+
+            try {
+                console.log(`[SpotifyImport] Importing playlist ${i + 1}/${result.total}: ${spotifyPlaylist.name}`);
+
+                // Fetch tracks from this playlist
+                const spotifyTracks = await SpotifyClient.getPlaylistTracks(
+                    spotifyPlaylist.id,
+                    (current, total) => {
+                        onProgress?.({
+                            phase: 'matching',
+                            total: result.total,
+                            processed: i,
+                            matched: result.imported,
+                            failed: result.failed.length,
+                            currentItem: `${spotifyPlaylist.name}: ${current}/${total} músicas`,
+                        });
+                    }
+                );
+
+                playlistResult.total = spotifyTracks.length;
+                console.log(`[SpotifyImport] Found ${playlistResult.total} tracks in playlist`);
+
+                // Match and convert tracks
+                const zunoTracks: Track[] = [];
+                for (let j = 0; j < spotifyTracks.length; j++) {
+                    const spotifyTrack = spotifyTracks[j];
+
+                    onProgress?.({
+                        phase: 'matching',
+                        total: result.total,
+                        processed: i,
+                        matched: result.imported,
+                        failed: result.failed.length,
+                        currentItem: `${spotifyPlaylist.name}: ${j + 1}/${spotifyTracks.length} - ${spotifyTrack.name}`,
+                    });
+
+                    try {
+                        const matchedTrack = await SpotifyMatcher.matchTrack(spotifyTrack);
+                        if (matchedTrack) {
+                            zunoTracks.push(matchedTrack);
+                            playlistResult.imported++;
+                        } else {
+                            const trackName = `${spotifyTrack.name} - ${spotifyTrack.artists[0]?.name || 'Unknown'}`;
+                            playlistResult.failed.push(trackName);
+                            console.log(`[SpotifyImport] No match found for: ${trackName}`);
+                        }
+                    } catch (error) {
+                        const trackName = `${spotifyTrack.name} - ${spotifyTrack.artists[0]?.name || 'Unknown'}`;
+                        playlistResult.failed.push(trackName);
+                        console.error(`[SpotifyImport] Failed to match track: ${trackName}`, error);
+                    }
+
+                    // Small delay to avoid overwhelming the API
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+
+                // Create playlist in Zuno if we have at least one track
+                if (zunoTracks.length > 0) {
+                    console.log(`[SpotifyImport] ✓ Creating playlist in IndexedDB: "${spotifyPlaylist.name}"`);
+                    console.log(`[SpotifyImport]   - Matched tracks: ${zunoTracks.length}/${spotifyTracks.length}`);
+                    console.log(`[SpotifyImport]   - Track names:`, zunoTracks.slice(0, 3).map(t => t.name).join(', ') + (zunoTracks.length > 3 ? '...' : ''));
+
+                    const zunoPlaylist = await PlaylistService.createPlaylist(
+                        spotifyPlaylist.name,
+                        spotifyPlaylist.description || `Importada do Spotify em ${new Date().toLocaleDateString('pt-BR')}`,
+                        spotifyPlaylist.images?.[0]?.url
+                    );
+
+                    console.log(`[SpotifyImport] ✓ Playlist created with ID: ${zunoPlaylist.id}`);
+
+                    // Add tracks to playlist
+                    await PlaylistService.addTracksToPlaylist(zunoPlaylist.id, zunoTracks);
+
+                    console.log(`[SpotifyImport] ✓ Added ${zunoTracks.length} tracks to playlist ${zunoPlaylist.id}`);
+
+                    result.imported++;
+                    console.log(`[SpotifyImport] ✅ Successfully imported playlist: "${spotifyPlaylist.name}" with ${zunoTracks.length} tracks`);
+                } else {
+                    console.warn(`[SpotifyImport] ⚠️ SKIPPING playlist "${spotifyPlaylist.name}" - NO TRACKS MATCHED!`);
+                    console.warn(`[SpotifyImport]   - Original track count: ${playlistResult.total}`);
+                    console.warn(`[SpotifyImport]   - Failed to match: ${playlistResult.failed.length} tracks`);
+                    console.warn(`[SpotifyImport]   - Failed tracks:`, playlistResult.failed.slice(0, 5).join(', ') + (playlistResult.failed.length > 5 ? '...' : ''));
+                    result.failed.push(spotifyPlaylist.name);
+                    console.log(`[SpotifyImport] No tracks matched for playlist: ${spotifyPlaylist.name}`);
+                }
+
+                result.playlists.push(playlistResult);
+            } catch (error) {
+                console.error(`[SpotifyImport] Failed to import playlist: ${spotifyPlaylist.name}`, error);
+                result.failed.push(spotifyPlaylist.name);
+                result.playlists.push(playlistResult);
+            }
+
+            // Small delay between playlists
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+
+        onProgress?.({
+            phase: 'saving',
+            total: result.total,
+            processed: result.total,
+            matched: result.imported,
+            failed: result.failed.length,
+            currentItem: 'Concluído!',
+        });
+
+    } catch (error) {
+        console.error('Failed to import playlists:', error);
+        throw error;
+    }
+
+    return result;
+}
+
+/**
  * Import all data from Spotify
  */
 export async function importAll(
@@ -204,15 +397,18 @@ export async function importAll(
 ): Promise<ImportAllResult> {
     const likedSongs = await importLikedSongs(onProgress);
     const followedArtists = await importFollowedArtists(onProgress);
+    const playlists = await importPlaylists(undefined, onProgress);
 
     return {
         likedSongs,
         followedArtists,
+        playlists,
     };
 }
 
 export const SpotifyImportService = {
     importLikedSongs,
     importFollowedArtists,
+    importPlaylists,
     importAll,
 };
