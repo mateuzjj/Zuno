@@ -1,0 +1,34 @@
+# Render Configuration for Zuno Music SPA
+
+services:
+  - type: web
+    name: zuno
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: true
+    
+    # SPA routing - redirect all routes to index.html
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    
+    # Environment Variables
+    # Set these in the Render Dashboard:
+    # - VITE_SPOTIFY_CLIENT_ID: Your Spotify Client ID
+    
+    # Headers for security and performance
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-XSS-Protection
+        value: "1; mode=block"
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
