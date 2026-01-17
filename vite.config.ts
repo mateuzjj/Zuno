@@ -5,14 +5,32 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+
+  // HTTPS configuration - only in development with certificates
+  const isDev = mode === 'development';
+  const certPath = './.certs/localhost-cert.pem';
+  const keyPath = './.certs/localhost-key.pem';
+
+  let httpsConfig = undefined;
+  if (isDev) {
+    try {
+      // Only use HTTPS if certificate files exist
+      if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+        httpsConfig = {
+          key: fs.readFileSync(keyPath),
+          cert: fs.readFileSync(certPath),
+        };
+      }
+    } catch (error) {
+      console.warn('HTTPS certificates not found, using HTTP');
+    }
+  }
+
   return {
     server: {
       port: 3002,
       host: '0.0.0.0', // Allow network access
-      https: {
-        key: fs.readFileSync('./.certs/localhost-key.pem'),
-        cert: fs.readFileSync('./.certs/localhost-cert.pem'),
-      },
+      https: httpsConfig,
       proxy: {
         '/api/lyrics': {
           target: 'https://lrclib.net',
