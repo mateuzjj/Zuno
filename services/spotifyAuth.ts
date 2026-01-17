@@ -387,10 +387,27 @@ export async function getAccessToken(): Promise<string | null> {
         }
     }
 
-    // Check for auth code in URL
+    // Check for auth code in URL or sessionStorage (backup in case URL was modified)
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
+    let code = urlParams.get('code');
+    let error = urlParams.get('error');
+    
+    // Fallback: check sessionStorage if code not in URL (handles cases where third-party scripts modify URL)
+    if (!code) {
+        code = sessionStorage.getItem('spotify_callback_code');
+        if (code) {
+            console.log('[SpotifyAuth] Found code in sessionStorage backup');
+            sessionStorage.removeItem('spotify_callback_code');
+        }
+    }
+    
+    if (!error) {
+        error = sessionStorage.getItem('spotify_callback_error');
+        if (error) {
+            console.log('[SpotifyAuth] Found error in sessionStorage backup');
+            sessionStorage.removeItem('spotify_callback_error');
+        }
+    }
 
     if (error) {
         console.error('[SpotifyAuth] OAuth error received:', error);
@@ -398,7 +415,7 @@ export async function getAccessToken(): Promise<string | null> {
     }
 
     if (code) {
-        console.log('[SpotifyAuth] Found authorization code in URL, exchanging for token...');
+        console.log('[SpotifyAuth] Found authorization code, exchanging for token...');
         console.log('[SpotifyAuth] Code (first 20 chars):', code.substring(0, 20));
         try {
             const newToken = await requestAccessToken(code);

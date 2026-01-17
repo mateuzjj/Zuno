@@ -26,18 +26,21 @@ const ZunoApp: React.FC = () => {
   // Handle Spotify OAuth callback
   useEffect(() => {
     const handleSpotifyCallback = async () => {
-      // Check if we're on the callback route OR if there's a code in the URL
+      // Check if we're on the callback route OR if there's a code in the URL or sessionStorage
       // This handles cases where the server might not rewrite the route correctly
+      // or third-party scripts modify the URL
       const urlParams = new URLSearchParams(window.location.search);
-      const hasCode = urlParams.has('code');
+      const hasCode = urlParams.has('code') || !!sessionStorage.getItem('spotify_callback_code');
+      const hasError = urlParams.has('error') || !!sessionStorage.getItem('spotify_callback_error');
       const isCallbackPath = window.location.pathname === '/spotify/callback' || 
                              window.location.pathname.includes('/spotify/callback');
       
-      if (isCallbackPath || hasCode) {
+      if (isCallbackPath || hasCode || hasError) {
+        console.log('[App] Processing Spotify callback...');
         setIsProcessingCallback(true);
 
         try {
-          // The getAccessToken function will automatically process the code from URL
+          // The getAccessToken function will automatically process the code from URL or sessionStorage
           await SpotifyAuth.getAccessToken();
           toast.show('Conectado ao Spotify com sucesso!', 'success');
 
@@ -49,8 +52,12 @@ const ZunoApp: React.FC = () => {
           cleanUrl.search = '';
           cleanUrl.pathname = '/';
           window.history.replaceState({}, document.title, cleanUrl.pathname);
+          
+          // Clean up sessionStorage backups
+          sessionStorage.removeItem('spotify_callback_code');
+          sessionStorage.removeItem('spotify_callback_error');
         } catch (error: any) {
-          console.error('Failed to process Spotify callback:', error);
+          console.error('[App] Failed to process Spotify callback:', error);
           const errorMsg = error?.message || 'Erro desconhecido';
           toast.show(`Erro ao conectar com Spotify: ${errorMsg}`, 'error');
 
@@ -60,13 +67,20 @@ const ZunoApp: React.FC = () => {
           cleanUrl.search = '';
           cleanUrl.pathname = '/';
           window.history.replaceState({}, document.title, cleanUrl.pathname);
+          
+          // Clean up sessionStorage backups
+          sessionStorage.removeItem('spotify_callback_code');
+          sessionStorage.removeItem('spotify_callback_error');
         } finally {
           setIsProcessingCallback(false);
         }
       }
     };
 
-    handleSpotifyCallback();
+    // Small delay to ensure React is fully mounted
+    const timeoutId = setTimeout(handleSpotifyCallback, 100);
+    
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const handleNavigate = (view: View, id?: string) => {
